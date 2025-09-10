@@ -37,8 +37,8 @@ const Login = () => {
     setError('');
 
     try {
-      await login(data).unwrap();
-      navigate('/dashboard', { replace: true });
+       await login(data).unwrap(); // ← Triggers POST /api/auth/login
+      navigate('/dashboard'); // ✅ Redirect on success
     } catch (err) {
       setError(err?.data?.message || 'Invalid username or password. Please try again.');
     }

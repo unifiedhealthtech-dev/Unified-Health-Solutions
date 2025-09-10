@@ -3,6 +3,8 @@ import express from 'express';
 import dotenv from 'dotenv';
 import sequelize from './db.js'; // Adjust path if needed
 import loginRegisterRouter from './router/loginRegisterRouter.js'; 
+import inventoryRouter from './router/inventoryRouter.js';
+import dashboardRouter from './router/dashboardRouter.js';
 import cookieParser from 'cookie-parser';
 dotenv.config();
 import cors from 'cors';
@@ -16,10 +18,11 @@ app.use(cookieParser());
 const orginOptions = {
   origin: 'http://localhost:8080', // Adjust as needed
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true,
+  credentials : true, // Allow cookies
 };
 
 app.use(cors(orginOptions));
+// Serve static files
 
 
 // Test DB connection
@@ -45,3 +48,10 @@ process.on('SIGINT', async () => {
 });
 
 app.use("/api", loginRegisterRouter);
+app.use("/api/inventory", inventoryRouter);
+app.use("/api/dashboard", dashboardRouter);
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something went wrong!' });
+});

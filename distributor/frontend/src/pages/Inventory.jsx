@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+// src/pages/Inventory.jsx
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Upload, 
-  Download, 
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  Upload,
+  Download,
   Package,
   AlertTriangle,
   Calendar,
@@ -36,123 +37,68 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
+import { useNavigate } from 'react-router-dom';
+import {
+  useGetStockItemsQuery,
+  useAddStockMutation,
+  useUpdateStockMutation,
+  useDeleteStockMutation
+} from '../services/inventoryApi';
 
 const Inventory = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
   const [showAddStock, setShowAddStock] = useState(false);
 
-  const inventory = [
-    {
-      productCode: 'PRD-001',
-      productName: 'Paracetamol 500mg',
-      hsn: '30049099',
-      batch: 'PCM001',
-      mfgDate: '2024-01-15',
-      expDate: '2025-12-15',
-      packSize: '10x10 Tablets',
-      mrp: '₹25.00',
-      ptr: '₹18.50',
-      pts: '₹20.00',
-      taxPercent: 12,
-      currentQty: 450,
-      minStock: 100,
-      status: 'In Stock',
-      category: 'Analgesics'
-    },
-    {
-      productCode: 'PRD-002',
-      productName: 'Amoxicillin 250mg',
-      hsn: '30041010',
-      batch: 'AMX002',
-      mfgDate: '2024-02-10',
-      expDate: '2025-08-10',
-      packSize: '10 Capsules',
-      mrp: '₹45.00',
-      ptr: '₹32.50',
-      pts: '₹35.00',
-      taxPercent: 12,
-      currentQty: 23,
-      minStock: 50,
-      status: 'Low Stock',
-      category: 'Antibiotics'
-    },
-    {
-      productCode: 'PRD-003',
-      productName: 'Cetirizine 10mg',
-      hsn: '30049099',
-      batch: 'CET003',
-      mfgDate: '2024-01-20',
-      expDate: '2025-10-20',
-      packSize: '10x10 Tablets',
-      mrp: '₹30.00',
-      ptr: '₹22.50',
-      pts: '₹25.00',
-      taxPercent: 12,
-      currentQty: 12,
-      minStock: 75,
-      status: 'Critical',
-      category: 'Antihistamines'
-    },
-    {
-      productCode: 'PRD-004',
-      productName: 'Omeprazole 20mg',
-      hsn: '30049099',
-      batch: 'OME004',
-      mfgDate: '2024-03-01',
-      expDate: '2025-02-28',
-      packSize: '10x10 Capsules',
-      mrp: '₹55.00',
-      ptr: '₹40.00',
-      pts: '₹45.00',
-      taxPercent: 12,
-      currentQty: 8,
-      minStock: 40,
-      status: 'Critical',
-      category: 'Antacids'
-    }
-  ];
+  // API Queries
+  const { data: stockData, isLoading: isStockLoading } = useGetStockItemsQuery({
+    search: searchTerm,
+    category: categoryFilter !== 'all' ? categoryFilter : undefined,
+    status: stockFilter !== 'all' && stockFilter !== 'Expired' ? stockFilter : undefined,
+  });
 
+  const [addStock] = useAddStockMutation();
+  const [updateStock] = useUpdateStockMutation();
+  const [deleteStock] = useDeleteStockMutation();
+
+  // Form state
   const [stockForm, setStockForm] = useState({
-    productCode: '',
-    productName: '',
-    hsn: '',
-    batch: '',
-    mfgDate: '',
-    expDate: '',
-    packSize: '',
-    mrp: '',
+    product_id: '',
+    batch_number: '',
+    manufacturing_date: '',
+    expiry_date: '',
+    quantity: '',
+    minimum_stock: '',
     ptr: '',
     pts: '',
-    taxPercent: 12,
-    qty: '',
-    minStock: ''
+    tax_rate: 12,
   });
 
-  const filteredInventory = inventory.filter(item => {
-    const matchesSearch = item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.productCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.batch.toLowerCase().includes(searchTerm.toLowerCase());
+  // Load categories from products
+  const [categories, setCategories] = useState([]);
 
-    const matchesCategory = categoryFilter === 'all' || item.category.toLowerCase() === categoryFilter;
+  useEffect(() => {
+    if (stockData?.data && stockData.data.length > 0) {
+      const uniqueCategories = [...new Set(stockData.data.map(item => item.Product?.category))];
+      setCategories(uniqueCategories);
+    }
+  }, [stockData]);
 
-    const matchesStock = stockFilter === 'all' || 
-                          (stockFilter === 'low' && item.status === 'Low Stock') ||
-                          (stockFilter === 'critical' && item.status === 'Critical') ||
-                          (stockFilter === 'instock' && item.status === 'In Stock');
+  const isExpired = (expiryDate) => {
+    if (!expiryDate) return false;
+    return new Date(expiryDate) < new Date();
+  };
 
-    return matchesSearch && matchesCategory && matchesStock;
-  });
-
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (item) => {
+    if (isExpired(item.expiry_date)) return "destructive"; // Expired badge
     const variants = {
       'In Stock': "default",
-      'Low Stock': "secondary", 
+      'Low Stock': "secondary",
       'Critical': "destructive",
-      'Out of Stock': "outline"
     };
-    return variants[status] || "secondary";
+    return variants[item.status] || "secondary";
   };
 
   const getStockTrend = (current, min) => {
@@ -163,13 +109,70 @@ const Inventory = () => {
     return { icon: AlertTriangle, color: 'text-destructive', text: 'Critical' };
   };
 
-  const handleAddStock = (e) => {
+  const handleAddStock = async (e) => {
     e.preventDefault();
-    console.log('Adding stock:', stockForm);
-    setShowAddStock(false);
+    try {
+      await addStock(stockForm).unwrap();
+      setShowAddStock(false);
+      setStockForm({
+        product_id: '',
+        batch_number: '',
+        manufacturing_date: '',
+        expiry_date: '',
+        quantity: '',
+        minimum_stock: '',
+        ptr: '',
+        pts: '',
+        tax_rate: 12,
+      });
+    } catch (err) {
+      console.error('Failed to add stock:', err);
+    }
   };
 
-  const categories = ['Analgesics', 'Antibiotics', 'Antihistamines', 'Antacids', 'Vitamins', 'Supplements'];
+  const handleDeleteStock = async (stock_id) => {
+    if (window.confirm('Are you sure you want to delete this stock item?')) {
+      try {
+        await deleteStock(stock_id).unwrap();
+      } catch (err) {
+        console.error('Failed to delete stock:', err);
+      }
+    }
+  };
+
+  // Apply search + category + stock + expired filter
+  const filteredItems = (stockData?.data || [])
+    .filter(item => {
+      const term = searchTerm.toLowerCase();
+      return (
+        !term ||
+        item.Product?.generic_name?.toLowerCase().includes(term) ||
+        item.Product?.product_code?.toLowerCase().includes(term) ||
+        item.batch_number?.toLowerCase().includes(term)
+      );
+    })
+    .filter(item => {
+      if (categoryFilter !== 'all') return item.Product?.category === categoryFilter;
+      return true;
+    })
+    .filter(item => {
+      if (stockFilter === 'Expired') return isExpired(item.expiry_date);
+      if (['In Stock', 'Low Stock', 'Critical'].includes(stockFilter)) return item.status === stockFilter && !isExpired(item.expiry_date);
+      return true;
+    });
+
+  if (isStockLoading) {
+    return (
+      <div className="p-6">
+        <div className="space-y-4 animate-pulse">
+          <div className="w-1/4 h-8 bg-gray-200 rounded"></div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-20 bg-gray-200 rounded"></div>)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -181,17 +184,17 @@ const Inventory = () => {
             Track pharmaceutical stock levels, batches, and expiry dates
           </p>
         </div>
-        
+
         <div className="flex gap-3">
           <Button variant="outline">
-            <Upload className="mr-2 h-4 w-4" />
+            <Upload className="w-4 h-4 mr-2" />
             Import CSV
           </Button>
-          
+
           <Dialog open={showAddStock} onOpenChange={setShowAddStock}>
             <DialogTrigger asChild>
               <Button variant="medical" size="lg">
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="w-4 h-4 mr-2" />
                 Add Stock
               </Button>
             </DialogTrigger>
@@ -202,123 +205,105 @@ const Inventory = () => {
                   Enter product details and stock information
                 </DialogDescription>
               </DialogHeader>
-              
+
+              {/* Form */}
               <form onSubmit={handleAddStock} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="productCode">Product Code</Label>
+                    <Label htmlFor="product_id">Product ID *</Label>
                     <Input
-                      id="productCode"
-                      value={stockForm.productCode}
-                      onChange={(e) => setStockForm({ ...stockForm, productCode: e.target.value })}
+                      id="product_id"
+                      value={stockForm.product_id}
+                      onChange={(e) => setStockForm({ ...stockForm, product_id: e.target.value })}
                       placeholder="PRD-001"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="productName">Product Name *</Label>
-                    <Input
-                      id="productName"
-                      value={stockForm.productName}
-                      onChange={(e) => setStockForm({ ...stockForm, productName: e.target.value })}
-                      placeholder="Enter product name"
                       required
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="hsn">HSN Code</Label>
+                    <Label htmlFor="batch_number">Batch No *</Label>
                     <Input
-                      id="hsn"
-                      value={stockForm.hsn}
-                      onChange={(e) => setStockForm({ ...stockForm, hsn: e.target.value })}
-                      placeholder="30049099"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="batch">Batch No *</Label>
-                    <Input
-                      id="batch"
-                      value={stockForm.batch}
-                      onChange={(e) => setStockForm({ ...stockForm, batch: e.target.value })}
+                      id="batch_number"
+                      value={stockForm.batch_number}
+                      onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })}
                       placeholder="Batch number"
                       required
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="mfgDate">Manufacturing Date</Label>
+                    <Label htmlFor="manufacturing_date">Manufacturing Date</Label>
                     <Input
-                      id="mfgDate"
+                      id="manufacturing_date"
                       type="date"
-                      value={stockForm.mfgDate}
-                      onChange={(e) => setStockForm({ ...stockForm, mfgDate: e.target.value })}
+                      value={stockForm.manufacturing_date}
+                      onChange={(e) => setStockForm({ ...stockForm, manufacturing_date: e.target.value })}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <Label htmlFor="expDate">Expiry Date *</Label>
+                    <Label htmlFor="expiry_date">Expiry Date *</Label>
                     <Input
-                      id="expDate"
+                      id="expiry_date"
                       type="date"
-                      value={stockForm.expDate}
-                      onChange={(e) => setStockForm({ ...stockForm, expDate: e.target.value })}
+                      value={stockForm.expiry_date}
+                      onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })}
                       required
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="packSize">Pack Size</Label>
-                  <Input
-                    id="packSize"
-                    value={stockForm.packSize}
-                    onChange={(e) => setStockForm({ ...stockForm, packSize: e.target.value })}
-                    placeholder="10x10 Tablets"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="mrp">MRP</Label>
+                    <Label htmlFor="quantity">Quantity *</Label>
                     <Input
-                      id="mrp"
-                      value={stockForm.mrp}
-                      onChange={(e) => setStockForm({ ...stockForm, mrp: e.target.value })}
-                      placeholder="₹0.00"
+                      id="quantity"
+                      type="number"
+                      value={stockForm.quantity}
+                      onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })}
+                      placeholder="0"
+                      required
                     />
                   </div>
-                  
+
+                  <div className="space-y-2">
+                    <Label htmlFor="minimum_stock">Minimum Stock</Label>
+                    <Input
+                      id="minimum_stock"
+                      type="number"
+                      value={stockForm.minimum_stock}
+                      onChange={(e) => setStockForm({ ...stockForm, minimum_stock: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="ptr">PTR</Label>
                     <Input
                       id="ptr"
                       value={stockForm.ptr}
                       onChange={(e) => setStockForm({ ...stockForm, ptr: e.target.value })}
-                      placeholder="₹0.00"
+                      placeholder="0.00"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="pts">PTS</Label>
                     <Input
                       id="pts"
                       value={stockForm.pts}
                       onChange={(e) => setStockForm({ ...stockForm, pts: e.target.value })}
-                      placeholder="₹0.00"
+                      placeholder="0.00"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="taxPercent">Tax %</Label>
-                    <Select onValueChange={(value) => setStockForm({ ...stockForm, taxPercent: Number(value) })}>
+                    <Label htmlFor="tax_rate">Tax %</Label>
+                    <Select onValueChange={(value) => setStockForm({ ...stockForm, tax_rate: Number(value) })}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select Tax %" />
                       </SelectTrigger>
@@ -330,29 +315,6 @@ const Inventory = () => {
                         <SelectItem value="28">28%</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="qty">Quantity *</Label>
-                    <Input
-                      id="qty"
-                      type="number"
-                      value={stockForm.qty}
-                      onChange={(e) => setStockForm({ ...stockForm, qty: e.target.value })}
-                      placeholder="0"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="minStock">Minimum Stock</Label>
-                    <Input
-                      id="minStock"
-                      type="number"
-                      value={stockForm.minStock}
-                      onChange={(e) => setStockForm({ ...stockForm, minStock: e.target.value })}
-                      placeholder="0"
-                    />
                   </div>
                 </div>
 
@@ -371,63 +333,73 @@ const Inventory = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Products</p>
-                <p className="text-2xl font-bold">2,847</p>
+                <p className="text-2xl font-bold">{stockData?.total || 0}</p>
               </div>
-              <Package className="h-8 w-8 text-muted-foreground" />
+              <Package className="w-8 h-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Low Stock Items</p>
-                <p className="text-2xl font-bold text-warning">23</p>
+                <p className="text-2xl font-bold text-warning">
+                  {stockData?.data?.filter(item => item.status === 'Low Stock' && !isExpired(item.expiry_date)).length || 0}
+                </p>
               </div>
-              <AlertTriangle className="h-8 w-8 text-warning" />
+              <AlertTriangle className="w-8 h-8 text-warning" />
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Expiring Soon</p>
-                <p className="text-2xl font-bold text-destructive">8</p>
+                <p className="text-2xl font-bold text-destructive">
+                  {stockData?.data?.filter(item => {
+                    const threeMonthsFromNow = new Date();
+                    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+                    return new Date(item.expiry_date) < threeMonthsFromNow && !isExpired(item.expiry_date);
+                  }).length || 0}
+                </p>
               </div>
-              <Calendar className="h-8 w-8 text-destructive" />
+              <Calendar className="w-8 h-8 text-destructive" />
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Value</p>
-                <p className="text-2xl font-bold">₹45.6L</p>
+                <p className="text-2xl font-bold">
+                  ₹{(stockData?.data?.reduce((sum, item) => sum + (Number(item.ptr) * item.current_stock), 0) || 0).toLocaleString()}
+                </p>
               </div>
-              <TrendingUp className="h-8 w-8 text-success" />
+              <TrendingUp className="w-8 h-8 text-success" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters and Search */}
+      {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex flex-col gap-4 md:flex-row">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute w-4 h-4 left-3 top-3 text-muted-foreground" />
                 <Input
                   placeholder="Search by product name, code, or batch..."
                   value={searchTerm}
@@ -436,15 +408,15 @@ const Inventory = () => {
                 />
               </div>
             </div>
-            
+
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(category => (
-                  <SelectItem key={category} value={category.toLowerCase()}>{category}</SelectItem>
+                {categories.map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -455,18 +427,19 @@ const Inventory = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Stock</SelectItem>
-                <SelectItem value="instock">In Stock</SelectItem>
-                <SelectItem value="low">Low Stock</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="In Stock">In Stock</SelectItem>
+                <SelectItem value="Low Stock">Low Stock</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+                <SelectItem value="Expired">Expired</SelectItem>
               </SelectContent>
             </Select>
 
             <div className="flex gap-2">
               <Button variant="outline" size="icon">
-                <Filter className="h-4 w-4" />
+                <Filter className="w-4 h-4" />
               </Button>
               <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
             </div>
@@ -479,11 +452,11 @@ const Inventory = () => {
         <CardHeader>
           <CardTitle>Stock Items</CardTitle>
           <CardDescription>
-            Total {filteredInventory.length} products found
+            Total {stockData?.total || 0} products found
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="border rounded-md">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -496,57 +469,63 @@ const Inventory = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInventory.map((item) => {
-                  const trend = getStockTrend(item.currentQty, item.minStock);
+                {filteredItems.map((item) => {
+                  const trend = getStockTrend(item.current_stock, item.minimum_stock);
                   const TrendIcon = trend.icon;
-                  
+
                   return (
-                    <TableRow key={item.productCode}>
+                    <TableRow key={item.stock_id}>
                       <TableCell>
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <Barcode className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{item.productCode}</span>
+                            <Barcode className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">{item.product_id}</span>
                           </div>
-                          <p className="font-medium">{item.productName}</p>
+                          <p className="font-medium">{item.Product?.generic_name || 'N/A'}</p>
                           <div className="text-sm text-muted-foreground">
-                            HSN: {item.hsn} | {item.packSize}
+                            HSN: {item.Product?.hsn_code || 'N/A'} | {item.Product?.unit_size || 'N/A'}
                           </div>
                           <Badge variant="outline" className="text-xs">
-                            {item.category}
+                            {item.Product?.category || 'N/A'}
                           </Badge>
                         </div>
                       </TableCell>
-                      
+
                       <TableCell>
                         <div className="space-y-1 text-sm">
-                          <div><strong>Batch:</strong> {item.batch}</div>
-                          <div><strong>Mfg:</strong> {item.mfgDate}</div>
-                          <div><strong>Exp:</strong> {item.expDate}</div>
-                        </div>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <div className="space-y-1 text-sm">
-                          <div><strong>MRP:</strong> {item.mrp}</div>
-                          <div><strong>PTR:</strong> {item.ptr}</div>
-                          <div><strong>PTS:</strong> {item.pts}</div>
-                          <div><strong>Tax:</strong> {item.taxPercent}%</div>
-                        </div>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <div className="space-y-2">
-                          <Badge variant={getStatusBadge(item.status)}>
-                            {item.status}
-                          </Badge>
-                          <div className="text-sm">
-                            <div><strong>Current:</strong> {item.currentQty}</div>
-                            <div><strong>Min:</strong> {item.minStock}</div>
+                          <div><strong>Batch:</strong> {item.batch_number}</div>
+                          <div><strong>Mfg:</strong> {new Date(item.manufacturing_date).toLocaleDateString()}</div>
+                          <div>
+                            <strong>Exp:</strong>{" "}
+                            <span className={isExpired(item.expiry_date) ? "text-red-600 font-semibold" : ""}>
+                              {new Date(item.expiry_date).toLocaleDateString()}
+                              {isExpired(item.expiry_date) && " (Expired)"}
+                            </span>
                           </div>
                         </div>
                       </TableCell>
-                      
+
+                      <TableCell>
+                        <div className="space-y-1 text-sm">
+                          <div><strong>MRP:</strong> ₹{parseFloat(item.Product?.mrp || 0).toFixed(2)}</div>
+                          <div><strong>PTR:</strong> ₹{parseFloat(item.ptr || 0).toFixed(2)}</div>
+                          <div><strong>PTS:</strong> ₹{parseFloat(item.pts || 0).toFixed(2)}</div>
+                          <div><strong>Tax:</strong> {parseFloat(item.tax_rate || 0)}%</div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="space-y-2">
+                          <Badge variant={getStatusBadge(item)}>
+                            {isExpired(item.expiry_date) ? "Expired" : item.status}
+                          </Badge>
+                          <div className="text-sm">
+                            <div><strong>Current:</strong> {item.current_stock}</div>
+                            <div><strong>Min:</strong> {item.minimum_stock}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <TrendIcon className={`h-4 w-4 ${trend.color}`} />
@@ -554,21 +533,21 @@ const Inventory = () => {
                             {trend.text}
                           </span>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {Math.round((item.currentQty / item.minStock) * 100)}% of min
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {item.minimum_stock > 0 ? Math.round((item.current_stock / item.minimum_stock) * 100) : 0}% of min
                         </div>
                       </TableCell>
-                      
+
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" title="Edit Stock">
-                            <Edit className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" title="Edit Stock" onClick={() => console.log('Edit stock:', item)}>
+                            <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="Adjust Stock">
-                            <Package className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" title="Adjust Stock" onClick={() => console.log('Adjust stock:', item)}>
+                            <Package className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="Delete Item">
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                          <Button variant="ghost" size="icon" title="Delete Item" onClick={() => handleDeleteStock(item.stock_id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
                       </TableCell>
