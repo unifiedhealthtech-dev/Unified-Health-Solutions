@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Pharmaceutical Distributor SaaS Design System - Telangana State */
+
+@layer base {
+  :root {
+    /* Medical/Healthcare Color Palette */
+    --background: 210 20% 98%;
+    --foreground: 210 20% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 20% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 20% 8%;
+
+    /* Primary: Medical Blue */
+    --primary: 201 89% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 201 89% 35%;
+    --primary-light: 201 89% 95%;
+
+    /* Secondary: Clean Teal */
+    --secondary: 186 64% 47%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 186 64% 37%;
+    --secondary-light: 186 64% 95%;
+
+    /* Accent: Professional Purple */
+    --accent: 240 21% 15%;
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 240 21% 25%;
+    --accent-light: 240 21% 95%;
+
+    /* Status Colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 76% 95%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 95%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 84% 95%;
+
+    /* Neutral Grays */
+    --muted: 210 20% 96%;
+    --muted-foreground: 210 20% 45%;
+
+    --border: 210 20% 90%;
+    --input: 210 20% 96%;
+    --ring: 201 89% 45%;
+
+    /* Medical Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(201 89% 45%), hsl(186 64% 47%));
+    --gradient-secondary: linear-gradient(135deg, hsl(186 64% 47%), hsl(240 21% 15%));
+    --gradient-hero: linear-gradient(135deg, hsl(201 89% 45%) 0%, hsl(186 64% 47%) 50%, hsl(240 21% 15%) 100%);
+    
+    /* Professional Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(210 20% 8% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(210 20% 8% / 0.1), 0 2px 4px -1px hsl(210 20% 8% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(210 20% 8% / 0.1), 0 4px 6px -2px hsl(210 20% 8% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(210 20% 8% / 0.1), 0 10px 10px -5px hsl(210 20% 8% / 0.04);
+
+    --radius: 0.75rem;
+
+    /* Sidebar Design */
+    --sidebar-background: 240 21% 15%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 201 89% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 21% 25%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 240 21% 25%;
+    --sidebar-ring: 201 89% 45%;
+
+    /* Animation Variables */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .dark {
+    --background: 240 21% 8%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 21% 12%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 240 21% 12%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 201 89% 55%;
+    --primary-foreground: 240 21% 8%;
+    --primary-hover: 201 89% 65%;
+    --primary-light: 201 89% 15%;
+
+    --secondary: 186 64% 57%;
+    --secondary-foreground: 240 21% 8%;
+    --secondary-hover: 186 64% 67%;
+    --secondary-light: 186 64% 15%;
+
+    --accent: 240 21% 25%;
+    --accent-foreground: 0 0% 95%;
+    --accent-hover: 240 21% 35%;
+    --accent-light: 240 21% 15%;
+
+    --muted: 240 21% 15%;
+    --muted-foreground: 0 0% 65%;
+
+    --border: 240 21% 20%;
+    --input: 240 21% 15%;
+    --ring: 201 89% 55%;
+
+    --sidebar-background: 240 21% 8%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-accent: 240 21% 15%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
