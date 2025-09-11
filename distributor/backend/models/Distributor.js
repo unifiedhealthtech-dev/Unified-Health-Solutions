@@ -1,15 +1,12 @@
-// models/Distributor.js
 import { DataTypes } from 'sequelize';
 import sequelize from '../db.js';
-import express from 'express';
-
+import User from './userSchema.js';
 
 const Distributor = sequelize.define('Distributor', {
   distributor_id: {
-    type: DataTypes.STRING(20),
-    primaryKey: true,
-    allowNull: false,
-    unique: true
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
   },
   name: {
     type: DataTypes.STRING(100),
@@ -63,4 +60,8 @@ const Distributor = sequelize.define('Distributor', {
   tableName: 'distributors'
 });
 
-export default Distributor; 
+// ✅ Associations
+User.hasOne(Distributor, { foreignKey: 'user_id', as: 'Distributor' });
+Distributor.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+
+export default Distributor;

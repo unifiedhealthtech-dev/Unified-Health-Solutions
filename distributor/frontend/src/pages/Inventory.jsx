@@ -6,6 +6,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { useGetProductsQuery } from '../services/inventoryApi';
 import {
   Plus,
   Search,
@@ -19,7 +20,8 @@ import {
   Barcode,
   TrendingUp,
   TrendingDown,
-  Filter
+  Filter,
+  FileText
 } from 'lucide-react';
 import {
   Dialog,
@@ -42,7 +44,8 @@ import {
   useGetStockItemsQuery,
   useAddStockMutation,
   useUpdateStockMutation,
-  useDeleteStockMutation
+  useDeleteStockMutation,
+  useImportProductsMutation,
 } from '../services/inventoryApi';
 
 const Inventory = () => {
@@ -51,21 +54,36 @@ const Inventory = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
   const [showAddStock, setShowAddStock] = useState(false);
+  const [showEditStock, setShowEditStock] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const { data: products = [], isLoading } = useGetProductsQuery();
 
+   
+  
+  const itemsPerPage = 10;
+  const [currentPage, setCurrentPage] = useState(1);
   // API Queries
-  const { data: stockData, isLoading: isStockLoading } = useGetStockItemsQuery({
+  const { data: stockData, isLoading: isStockLoading, refetch } = useGetStockItemsQuery({
     search: searchTerm,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     status: stockFilter !== 'all' && stockFilter !== 'Expired' ? stockFilter : undefined,
+    limit: itemsPerPage,
+    offset: (currentPage - 1) * itemsPerPage,
   });
-
+  
+  // Calculate totalPages from total count from API
+  const totalPages = Math.ceil((stockData?.total || 0) / itemsPerPage);
   const [addStock] = useAddStockMutation();
   const [updateStock] = useUpdateStockMutation();
   const [deleteStock] = useDeleteStockMutation();
-
+  const [importProducts] = useImportProductsMutation();
+  
+  
+  
   // Form state
   const [stockForm, setStockForm] = useState({
-    product_id: '',
+    product_id: '',          // This holds product_code selected from dropdown
     batch_number: '',
     manufacturing_date: '',
     expiry_date: '',
@@ -75,16 +93,26 @@ const Inventory = () => {
     pts: '',
     tax_rate: 12,
   });
-
+  // Call refetch when currentPage changes to fetch new page data
+  useEffect(() => {
+    refetch();
+  }, [currentPage]);
+  
+  // Handler for changing page
+  const handlePageChange = (page) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
+  
   // Load categories from products
   const [categories, setCategories] = useState([]);
 
-  useEffect(() => {
-    if (stockData?.data && stockData.data.length > 0) {
-      const uniqueCategories = [...new Set(stockData.data.map(item => item.Product?.category))];
-      setCategories(uniqueCategories);
-    }
-  }, [stockData]);
+useEffect(() => {
+  if (stockData?.categories) {
+    setCategories(stockData.categories);
+  }
+}, [stockData]);
+
 
   const isExpired = (expiryDate) => {
     if (!expiryDate) return false;
@@ -92,7 +120,7 @@ const Inventory = () => {
   };
 
   const getStatusBadge = (item) => {
-    if (isExpired(item.expiry_date)) return "destructive"; // Expired badge
+    if (isExpired(item.expiry_date)) return "destructive";
     const variants = {
       'In Stock': "default",
       'Low Stock': "secondary",
@@ -110,10 +138,58 @@ const Inventory = () => {
   };
 
   const handleAddStock = async (e) => {
+  e.preventDefault();
+  try {
+    await addStock(stockForm).unwrap();  // Calls backend add stock
+    setShowAddStock(false);
+    setStockForm({
+      product_id: '',
+      batch_number: '',
+      manufacturing_date: '',
+      expiry_date: '',
+      quantity: '',
+      minimum_stock: '',
+      ptr: '',
+      pts: '',
+      tax_rate: 12,
+    });
+    refetch(); // Refresh stock table data
+  } catch (err) {
+    console.error('Failed to add stock:', err);
+    alert('Failed to add stock. Please try again.');
+  }
+};
+
+  const handleEditStock = (item) => {
+    setEditingItem(item);
+    setStockForm({
+      product_id: item.product_id,
+      batch_number: item.batch_number,
+      manufacturing_date: item.manufacturing_date ? new Date(item.manufacturing_date).toISOString().split('T')[0] : '',
+      expiry_date: item.expiry_date ? new Date(item.expiry_date).toISOString().split('T')[0] : '',
+      quantity: item.quantity.toString(),
+      minimum_stock: item.minimum_stock.toString(),
+      ptr: item.ptr.toString(),
+      pts: item.pts.toString(),
+      tax_rate: item.tax_rate.toString(),
+    });
+    setShowEditStock(true);
+  };
+
+  const handleUpdateStock = async (e) => {
     e.preventDefault();
     try {
-      await addStock(stockForm).unwrap();
-      setShowAddStock(false);
+      await updateStock({
+        stockId: editingItem.stock_id,
+        ...stockForm,
+        quantity: parseInt(stockForm.quantity),
+        minimum_stock: parseInt(stockForm.minimum_stock),
+        ptr: parseFloat(stockForm.ptr),
+        pts: parseFloat(stockForm.pts),
+        tax_rate: parseFloat(stockForm.tax_rate)
+      }).unwrap();
+      setShowEditStock(false);
+      setEditingItem(null);
       setStockForm({
         product_id: '',
         batch_number: '',
@@ -125,8 +201,10 @@ const Inventory = () => {
         pts: '',
         tax_rate: 12,
       });
+      refetch(); // Refresh data
     } catch (err) {
-      console.error('Failed to add stock:', err);
+      console.error('Failed to update stock:', err);
+      alert('Failed to update stock. Please try again.');
     }
   };
 
@@ -134,11 +212,97 @@ const Inventory = () => {
     if (window.confirm('Are you sure you want to delete this stock item?')) {
       try {
         await deleteStock(stock_id).unwrap();
+        refetch(); // Refresh data
       } catch (err) {
         console.error('Failed to delete stock:', err);
+        alert('Failed to delete stock. Please try again.');
       }
     }
   };
+
+const handleImportCSV = async (e) => {
+  e.preventDefault();
+  const fileInput = document.getElementById('csvFile');
+  const file = fileInput.files[0];
+
+  if (!file) {
+    alert('Please select a CSV file to import');
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    const lines = text.split('\n').filter(line => line.trim() !== '');
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+
+    const products = lines.slice(1).map(line => {
+      const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+      const obj = {};
+      headers.forEach((header, i) => {
+        obj[header] = values[i] || '';
+      });
+      return obj;
+    });
+
+    // Send POST request to backend
+    const response = await fetch('http://localhost:5000/api/inventory/products/import', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // if your token is in cookie, you don't need Authorization header
+        'Accept': 'application/json'
+      },
+      credentials: 'include', // important if token is in cookie
+      body: JSON.stringify({ products }) // wrap array in object
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw data;
+    }
+
+    alert(`${data.imported} products imported successfully!`);
+    setShowImport(false);
+    refetch();
+
+  } catch (err) {
+    console.error('Failed to import products:', err);
+    alert(`Failed to import products: ${err.message || JSON.stringify(err)}`);
+  }
+};
+
+
+
+
+const handleExportCSV = async () => {
+  try {
+    const response = await fetch('http://localhost:5000/api/inventory/products/export', {
+      method: 'GET',
+      credentials: 'include', // ✅ send cookies along with request
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch CSV');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inventory_export.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+  } catch (err) {
+    console.error('Failed to export products:', err);
+    alert('Failed to export products. Please try again.');
+  }
+};
+
+
 
   // Apply search + category + stock + expired filter
   const filteredItems = (stockData?.data || [])
@@ -186,9 +350,14 @@ const Inventory = () => {
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setShowImport(true)}>
             <Upload className="w-4 h-4 mr-2" />
             Import CSV
+          </Button>
+
+          <Button variant="outline" onClick={handleExportCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
           </Button>
 
           <Dialog open={showAddStock} onOpenChange={setShowAddStock}>
@@ -206,127 +375,144 @@ const Inventory = () => {
                 </DialogDescription>
               </DialogHeader>
 
-              {/* Form */}
               <form onSubmit={handleAddStock} className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="product_id">Product ID *</Label>
-                    <Input
-                      id="product_id"
-                      value={stockForm.product_id}
-                      onChange={(e) => setStockForm({ ...stockForm, product_id: e.target.value })}
-                      placeholder="PRD-001"
-                      required
-                    />
-                  </div>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
-                  <div className="space-y-2">
-                    <Label htmlFor="batch_number">Batch No *</Label>
-                    <Input
-                      id="batch_number"
-                      value={stockForm.batch_number}
-                      onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })}
-                      placeholder="Batch number"
-                      required
-                    />
-                  </div>
-                </div>
+    {/* Product Select Dropdown */}
+    <div className="space-y-2">
+      <Label htmlFor="product_id">Product *</Label>
+      <Select
+        value={stockForm.product_id || ""}
+        onValueChange={(value) => setStockForm({ ...stockForm, product_id: value })}
+        required
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select Product" />
+        </SelectTrigger>
+        <SelectContent>
+          {products?.map((p) => (
+            <SelectItem key={p.product_code} value={p.product_code}>
+              {p.product_code} - {p.generic_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="manufacturing_date">Manufacturing Date</Label>
-                    <Input
-                      id="manufacturing_date"
-                      type="date"
-                      value={stockForm.manufacturing_date}
-                      onChange={(e) => setStockForm({ ...stockForm, manufacturing_date: e.target.value })}
-                    />
-                  </div>
+    {/* Batch Number */}
+    <div className="space-y-2">
+      <Label htmlFor="batch_number">Batch No *</Label>
+      <Input
+        id="batch_number"
+        value={stockForm.batch_number}
+        onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })}
+        placeholder="Batch number"
+        required
+      />
+    </div>
+  </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="expiry_date">Expiry Date *</Label>
-                    <Input
-                      id="expiry_date"
-                      type="date"
-                      value={stockForm.expiry_date}
-                      onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    {/* Manufacturing Date */}
+    <div className="space-y-2">
+      <Label htmlFor="manufacturing_date">Manufacturing Date</Label>
+      <Input
+        id="manufacturing_date"
+        type="date"
+        value={stockForm.manufacturing_date}
+        onChange={(e) => setStockForm({ ...stockForm, manufacturing_date: e.target.value })}
+      />
+    </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity *</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      value={stockForm.quantity}
-                      onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })}
-                      placeholder="0"
-                      required
-                    />
-                  </div>
+    {/* Expiry Date */}
+    <div className="space-y-2">
+      <Label htmlFor="expiry_date">Expiry Date *</Label>
+      <Input
+        id="expiry_date"
+        type="date"
+        value={stockForm.expiry_date}
+        onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })}
+        required
+      />
+    </div>
+  </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="minimum_stock">Minimum Stock</Label>
-                    <Input
-                      id="minimum_stock"
-                      type="number"
-                      value={stockForm.minimum_stock}
-                      onChange={(e) => setStockForm({ ...stockForm, minimum_stock: e.target.value })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    {/* Quantity */}
+    <div className="space-y-2">
+      <Label htmlFor="quantity">Quantity *</Label>
+      <Input
+        id="quantity"
+        type="number"
+        value={stockForm.quantity}
+        onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })}
+        placeholder="0"
+        required
+      />
+    </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="ptr">PTR</Label>
-                    <Input
-                      id="ptr"
-                      value={stockForm.ptr}
-                      onChange={(e) => setStockForm({ ...stockForm, ptr: e.target.value })}
-                      placeholder="0.00"
-                    />
-                  </div>
+    {/* Minimum Stock */}
+    <div className="space-y-2">
+      <Label htmlFor="minimum_stock">Minimum Stock</Label>
+      <Input
+        id="minimum_stock"
+        type="number"
+        value={stockForm.minimum_stock}
+        onChange={(e) => setStockForm({ ...stockForm, minimum_stock: e.target.value })}
+        placeholder="0"
+      />
+    </div>
+  </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="pts">PTS</Label>
-                    <Input
-                      id="pts"
-                      value={stockForm.pts}
-                      onChange={(e) => setStockForm({ ...stockForm, pts: e.target.value })}
-                      placeholder="0.00"
-                    />
-                  </div>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    {/* PTR */}
+    <div className="space-y-2">
+      <Label htmlFor="ptr">PTR</Label>
+      <Input
+        id="ptr"
+        value={stockForm.ptr}
+        onChange={(e) => setStockForm({ ...stockForm, ptr: e.target.value })}
+        placeholder="0.00"
+      />
+    </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="tax_rate">Tax %</Label>
-                    <Select onValueChange={(value) => setStockForm({ ...stockForm, tax_rate: Number(value) })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Tax %" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0%</SelectItem>
-                        <SelectItem value="5">5%</SelectItem>
-                        <SelectItem value="12">12%</SelectItem>
-                        <SelectItem value="18">18%</SelectItem>
-                        <SelectItem value="28">28%</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+    {/* PTS */}
+    <div className="space-y-2">
+      <Label htmlFor="pts">PTS</Label>
+      <Input
+        id="pts"
+        value={stockForm.pts}
+        onChange={(e) => setStockForm({ ...stockForm, pts: e.target.value })}
+        placeholder="0.00"
+      />
+    </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setShowAddStock(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" variant="medical">
-                    Add Stock
-                  </Button>
-                </div>
-              </form>
+    {/* Tax Rate Select */}
+    <div className="space-y-2">
+      <Label htmlFor="tax_rate">Tax %</Label>
+      <Select
+        onValueChange={(value) => setStockForm({ ...stockForm, tax_rate: Number(value) })}
+        value={stockForm.tax_rate.toString()}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select Tax %" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="0">0%</SelectItem>
+          <SelectItem value="5">5%</SelectItem>
+          <SelectItem value="12">12%</SelectItem>
+          <SelectItem value="18">18%</SelectItem>
+          <SelectItem value="28">28%</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  </div>
+
+  <div className="flex justify-end gap-3 pt-4">
+    <Button type="button" variant="outline" onClick={() => setShowAddStock(false)}>Cancel</Button>
+    <Button type="submit" variant="medical">Add Stock</Button>
+  </div>
+</form>
             </DialogContent>
           </Dialog>
         </div>
@@ -409,17 +595,18 @@ const Inventory = () => {
               </div>
             </div>
 
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+  <SelectTrigger className="w-full md:w-[180px]">
+    <SelectValue placeholder="Category" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">All Categories</SelectItem>
+    {categories.map(cat => (
+      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+
 
             <Select value={stockFilter} onValueChange={setStockFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
@@ -438,7 +625,7 @@ const Inventory = () => {
               <Button variant="outline" size="icon">
                 <Filter className="w-4 h-4" />
               </Button>
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExportCSV}>
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
@@ -540,13 +727,31 @@ const Inventory = () => {
 
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" title="Edit Stock" onClick={() => console.log('Edit stock:', item)}>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            title="Edit Stock" 
+                            onClick={() => handleEditStock(item)}
+                          >
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="Adjust Stock" onClick={() => console.log('Adjust stock:', item)}>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            title="Adjust Stock" 
+                            onClick={() => {
+                              // You can implement a separate adjust stock dialog here
+                              alert('Adjust stock functionality coming soon!');
+                            }}
+                          >
                             <Package className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="Delete Item" onClick={() => handleDeleteStock(item.stock_id)}>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            title="Delete Item" 
+                            onClick={() => handleDeleteStock(item.stock_id)}
+                          >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
@@ -559,7 +764,216 @@ const Inventory = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Stock Dialog */}
+      <Dialog open={showEditStock} onOpenChange={setShowEditStock}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Stock Item</DialogTitle>
+            <DialogDescription>
+              Update product details and stock information
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateStock} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+<div className="space-y-2">
+  <Label htmlFor="product_id">Product *</Label>
+  <Select 
+    onValueChange={(value) => setStockForm({ ...stockForm, product_id: value })}
+    value={stockForm.product_id || ""}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select Product"/>
+    </SelectTrigger>
+    <SelectContent>
+      {products?.map((p) => (
+        <SelectItem 
+          key={p.product_code} 
+          value={p.product_code}
+        >
+          {p.product_code} - {p.generic_name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_batch_number">Batch No *</Label>
+                <Input
+                  id="edit_batch_number"
+                  value={stockForm.batch_number}
+                  onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })}
+                  placeholder="Batch number"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit_manufacturing_date">Manufacturing Date</Label>
+                <Input
+                  id="edit_manufacturing_date"
+                  type="date"
+                  value={stockForm.manufacturing_date}
+                  onChange={(e) => setStockForm({ ...stockForm, manufacturing_date: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit_expiry_date">Expiry Date *</Label>
+                <Input
+                  id="edit_expiry_date"
+                  type="date"
+                  value={stockForm.expiry_date}
+                  onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit_quantity">Quantity *</Label>
+                <Input
+                  id="edit_quantity"
+                  type="number"
+                  value={stockForm.quantity}
+                  onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })}
+                  placeholder="0"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit_minimum_stock">Minimum Stock</Label>
+                <Input
+                  id="edit_minimum_stock"
+                  type="number"
+                  value={stockForm.minimum_stock}
+                  onChange={(e) => setStockForm({ ...stockForm, minimum_stock: e.target.value })}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+  {/* PTR */}
+  <div className="space-y-2">
+    <Label htmlFor="edit_ptr">PTR</Label>
+    <Input
+      id="edit_ptr"
+      type="number"
+      value={stockForm.ptr}
+      onChange={(e) => setStockForm({ ...stockForm, ptr: e.target.value })}
+      placeholder="0.00"
+    />
+  </div>
+
+  {/* PTS */}
+  <div className="space-y-2">
+    <Label htmlFor="edit_pts">PTS</Label>
+    <Input
+      id="edit_pts"
+      type="number"
+      value={stockForm.pts}
+      onChange={(e) => setStockForm({ ...stockForm, pts: e.target.value })}
+      placeholder="0.00"
+    />
+  </div>
+
+  {/* Tax % */}
+  <div className="space-y-2">
+    <Label htmlFor="edit_tax_rate">Tax %</Label>
+    <Input
+      id="edit_tax_rate"
+      type="number"
+      value={stockForm.tax_rate ?? ""}
+      onChange={(e) => setStockForm({ ...stockForm, tax_rate: e.target.value })}
+      placeholder="0"
+      min={0}
+      max={100}
+    />
+  </div>
+</div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowEditStock(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="medical">
+                Update Stock
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import CSV Dialog */}
+      <Dialog open={showImport} onOpenChange={setShowImport}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import Products from CSV</DialogTitle>
+            <DialogDescription>
+              Upload a CSV file to import products into your inventory
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleImportCSV} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="csvFile">CSV File *</Label>
+              <Input
+                id="csvFile"
+                type="file"
+                accept=".csv"
+                required
+              />
+              <p className="text-sm text-muted-foreground">
+                CSV should have columns: product_id, product_code, generic_name, unit_size, mrp, group_name, hsn_code, category, batch_number, manufacturing_date, expiry_date, quantity, minimum_stock, ptr, pts, tax_rate
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowImport(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="medical">
+                Import Products
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <div className="flex items-center justify-center gap-3 py-4">
+        <Button
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-1 border rounded"
+        >
+          Previous
+        </Button>
+
+        {[...Array(totalPages)].map((_, i) => (
+          <Button
+            key={i + 1}
+            onClick={() => handlePageChange(i + 1)}
+            className={`px-3 py-1 rounded border ${currentPage === i + 1 ? 'bg-blue-600 text-white' : ''}`}
+          >
+            {i + 1}
+          </Button>
+        ))}
+
+        <Button
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages || totalPages === 0}
+          className="px-3 py-1 border rounded"
+        >
+          Next
+        </Button>
+      </div>
     </div>
+    
   );
 };
 

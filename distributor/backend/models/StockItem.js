@@ -1,14 +1,21 @@
-// models/StockItem.js
 import { DataTypes } from 'sequelize';
 import sequelize from "../db.js";
 import Product from './Product.js';
+import Distributor from './Distributor.js';
 
 const StockItem = sequelize.define('StockItem', {
   stock_id: {
     type: DataTypes.INTEGER,
     autoIncrement: true,
-    primaryKey: true,
-    field: 'stock_id'
+    primaryKey: true
+  },
+  distributor_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Distributor,
+      key: 'distributor_id'
+    }
   },
   product_id: {
     type: DataTypes.STRING(20),
@@ -16,80 +23,71 @@ const StockItem = sequelize.define('StockItem', {
     references: {
       model: Product,
       key: 'product_id'
-    },
-    field: 'product_id' // ← Critical fix
+    }
   },
   batch_number: {
     type: DataTypes.STRING(50),
-    allowNull: false,
-    field: 'batch_number'
+    allowNull: false
   },
   manufacturing_date: {
     type: DataTypes.DATE,
-    allowNull: false,
-    field: 'manufacturing_date'
+    allowNull: false
   },
   expiry_date: {
     type: DataTypes.DATE,
-    allowNull: false,
-    field: 'expiry_date'
+    allowNull: false
   },
   quantity: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 0,
-    field: 'quantity'
+    defaultValue: 0
   },
   minimum_stock: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 0,
-    field: 'minimum_stock' // ← Match DB column
+    defaultValue: 0
   },
   ptr: {
     type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    field: 'ptr'
+    allowNull: false
   },
   pts: {
     type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    field: 'pts'
+    allowNull: false
   },
   tax_rate: {
     type: DataTypes.DECIMAL(5, 2),
     allowNull: false,
-    defaultValue: 0,
-    field: 'tax_rate'
+    defaultValue: 0
   },
   current_stock: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 0,
-    field: 'current_stock' // ← Critical fix
+    defaultValue: 0
   },
   is_expired: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false,
-    field: 'is_expired'
+    defaultValue: false
   },
   is_critical: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false,
-    field: 'is_critical'
+    defaultValue: false
   },
   status: {
     type: DataTypes.ENUM('In Stock', 'Low Stock', 'Critical', 'Expired'),
-    defaultValue: 'In Stock',
-    field: 'status'
+    defaultValue: 'In Stock'
   }
 }, {
   timestamps: true,
   tableName: 'stock_items',
-  underscored: true // ← Map createdAt → created_at, updatedAt → updated_at
+  underscored: true
 });
 
+// ✅ Associations
 StockItem.belongsTo(Product, { foreignKey: 'product_id' });
+StockItem.belongsTo(Distributor, { foreignKey: 'distributor_id', as: 'Distributor' });
+
 Product.hasMany(StockItem, { foreignKey: 'product_id' });
+Distributor.hasMany(StockItem, { foreignKey: 'distributor_id', as: 'StockItems' });
 
 export default StockItem;

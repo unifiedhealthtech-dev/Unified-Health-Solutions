@@ -1,7 +1,12 @@
-import sequelize from '../db.js'; // Make sure path is correct!
 import { DataTypes } from 'sequelize';
+import sequelize from '../db.js';
 
-const User = sequelize.define('User', { // Singular name recommended
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
   username: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -11,18 +16,15 @@ const User = sequelize.define('User', { // Singular name recommended
     type: DataTypes.STRING,
     allowNull: false,
     unique: true,
-    validate: {
-      isEmail: true
-    }
+    validate: { isEmail: true }
   },
   hashedpassword: {
     type: DataTypes.STRING,
     allowNull: false
   }
 }, {
- // maps to existing table
-    timestamps: true   // no createdAt/updatedAt
+  timestamps: true,
+  tableName: 'users'
 });
-const model = await User.sync(); // Sync model with DB
-console.log("User model synced:", model === User); // true if successful
+
 export default User;

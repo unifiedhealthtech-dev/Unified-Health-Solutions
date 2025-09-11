@@ -7,7 +7,10 @@ import {
   getStockDetails,
   addStock,
   updateStock,
-  deleteStock
+  deleteStock,
+  getProducts ,
+  exportProducts,
+  importProducts,
 } from '../controller/inventoryApi.js';
 
 const inventoryRouter = Router();
@@ -29,5 +32,14 @@ inventoryRouter.put('/stock/:stockId', authenticateToken, updateStock);
 
 // Delete stock item
 inventoryRouter.delete('/stock/:stockId', authenticateToken, deleteStock);
+
+// Get all products
+inventoryRouter.get('/products', authenticateToken, getProducts);
+
+// Export products
+inventoryRouter.get('/products/export', authenticateToken, exportProducts);
+
+// Import products from CSV
+inventoryRouter.post('/products/import', authenticateToken, importProducts);
 
 export default inventoryRouter;
