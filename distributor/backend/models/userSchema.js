@@ -18,13 +18,14 @@ const User = sequelize.define('User', {
     unique: true,
     validate: { isEmail: true }
   },
-  hashedpassword: {
+  hashed_password: {
     type: DataTypes.STRING,
     allowNull: false
   }
 }, {
   timestamps: true,
-  tableName: 'users'
+  tableName: 'users',
+  underscored: true,
 });
 
 export default User;

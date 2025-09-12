@@ -57,7 +57,8 @@ const Distributor = sequelize.define('Distributor', {
   }
 }, {
   timestamps: true,
-  tableName: 'distributors'
+  tableName: 'distributors',
+  underscored: true,
 });
 
 // ✅ Associations

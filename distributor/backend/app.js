@@ -2,9 +2,8 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import sequelize from './db.js'; // Adjust path if needed
-import loginRegisterRouter from './router/loginRegisterRouter.js'; 
+import loginRouter from './router/loginRouter.js'; 
 import inventoryRouter from './router/inventoryRouter.js';
-import dashboardRouter from './router/dashboardRouter.js';
 import cookieParser from 'cookie-parser';
 dotenv.config();
 import cors from 'cors';
@@ -47,9 +46,8 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-app.use("/api", loginRegisterRouter);
+app.use("/api", loginRouter);
 app.use("/api/inventory", inventoryRouter);
-app.use("/api/dashboard", dashboardRouter);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

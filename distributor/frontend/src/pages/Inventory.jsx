@@ -39,13 +39,14 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   useGetStockItemsQuery,
   useAddStockMutation,
   useUpdateStockMutation,
   useDeleteStockMutation,
   useImportProductsMutation,
+  useGetInventorySummaryQuery
 } from '../services/inventoryApi';
 
 const Inventory = () => {
@@ -97,7 +98,35 @@ const Inventory = () => {
   useEffect(() => {
     refetch();
   }, [currentPage]);
-  
+  useEffect(() => {
+    // Example: ping the backend to check token
+    fetch('http://localhost:5000/api/inventory/stock', {
+      method: 'GET',
+      credentials: 'include', // send cookies
+    })
+      .then(res => {
+        if (res.status === 401) {
+          navigate('/login'); // redirect if unauthorized
+        }
+      })
+      .catch(err => {
+        console.error('Auth check failed', err);
+      });
+  }, [navigate]);
+
+  // Open Add Stock dialog if navigated from dashboard
+  const location = useLocation();
+
+useEffect(() => {
+  if (location.state?.openAddStock) {
+    setShowAddStock(true); // Open the Add Stock dialog
+    // Clear the state so it doesn’t reopen on reload
+    navigate('/inventory', { replace: true });
+  }
+}, [location.state, navigate]);
+
+
+
   // Handler for changing page
   const handlePageChange = (page) => {
     if (page < 1 || page > totalPages) return;
@@ -136,6 +165,14 @@ useEffect(() => {
     if (percentage > 50) return { icon: TrendingDown, color: 'text-warning', text: 'Low' };
     return { icon: AlertTriangle, color: 'text-destructive', text: 'Critical' };
   };
+
+  // Add another query just for summary (without pagination)
+const { data: stockSummary } = useGetStockItemsQuery({
+  search: searchTerm,
+  category: categoryFilter !== 'all' ? categoryFilter : undefined,
+  status: stockFilter !== 'all' && stockFilter !== 'Expired' ? stockFilter : undefined,
+});
+
 
   const handleAddStock = async (e) => {
   e.preventDefault();
@@ -525,7 +562,7 @@ const handleExportCSV = async () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Products</p>
-                <p className="text-2xl font-bold">{stockData?.total || 0}</p>
+                <p className="text-2xl font-bold">{stockSummary?.total || 0}</p>
               </div>
               <Package className="w-8 h-8 text-muted-foreground" />
             </div>
@@ -537,9 +574,11 @@ const handleExportCSV = async () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Low Stock Items</p>
+
                 <p className="text-2xl font-bold text-warning">
-                  {stockData?.data?.filter(item => item.status === 'Low Stock' && !isExpired(item.expiry_date)).length || 0}
-                </p>
+  {stockSummary?.data?.filter(item => item.status === 'Low Stock' && !isExpired(item.expiry_date)).length || 0}
+</p>
+
               </div>
               <AlertTriangle className="w-8 h-8 text-warning" />
             </div>
@@ -552,12 +591,12 @@ const handleExportCSV = async () => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Expiring Soon</p>
                 <p className="text-2xl font-bold text-destructive">
-                  {stockData?.data?.filter(item => {
-                    const threeMonthsFromNow = new Date();
-                    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
-                    return new Date(item.expiry_date) < threeMonthsFromNow && !isExpired(item.expiry_date);
-                  }).length || 0}
-                </p>
+  {stockSummary?.data?.filter(item => {
+    const threeMonthsFromNow = new Date();
+    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+    return new Date(item.expiry_date) < threeMonthsFromNow && !isExpired(item.expiry_date);
+  }).length || 0}
+</p>
               </div>
               <Calendar className="w-8 h-8 text-destructive" />
             </div>
@@ -569,9 +608,10 @@ const handleExportCSV = async () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Value</p>
-                <p className="text-2xl font-bold">
-                  ₹{(stockData?.data?.reduce((sum, item) => sum + (Number(item.ptr) * item.current_stock), 0) || 0).toLocaleString()}
-                </p>
+               <p className="text-2xl font-bold">
+  ₹{(stockSummary?.data?.reduce((sum, item) => sum + (Number(item.ptr) * item.current_stock), 0) || 0).toLocaleString()}
+</p>
+
               </div>
               <TrendingUp className="w-8 h-8 text-success" />
             </div>
@@ -600,9 +640,9 @@ const handleExportCSV = async () => {
     <SelectValue placeholder="Category" />
   </SelectTrigger>
   <SelectContent>
-    <SelectItem value="all">All Categories</SelectItem>
+    <SelectItem value="all" className="cursor-pointer">All Categories</SelectItem>
     {categories.map(cat => (
-      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+      <SelectItem key={cat} value={cat} className="cursor-pointer">{cat}</SelectItem>
     ))}
   </SelectContent>
 </Select>
@@ -613,11 +653,11 @@ const handleExportCSV = async () => {
                 <SelectValue placeholder="Stock Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Stock</SelectItem>
-                <SelectItem value="In Stock">In Stock</SelectItem>
-                <SelectItem value="Low Stock">Low Stock</SelectItem>
-                <SelectItem value="Critical">Critical</SelectItem>
-                <SelectItem value="Expired">Expired</SelectItem>
+                <SelectItem value="all"className="cursor-pointer">All Stock</SelectItem>
+                <SelectItem value="In Stock"className="cursor-pointer">In Stock</SelectItem>
+                <SelectItem value="Low Stock"className="cursor-pointer">Low Stock</SelectItem>
+                <SelectItem value="Critical"className="cursor-pointer">Critical</SelectItem>
+                <SelectItem value="Expired"className="cursor-pointer">Expired</SelectItem>
               </SelectContent>
             </Select>
 
@@ -734,17 +774,6 @@ const handleExportCSV = async () => {
                             onClick={() => handleEditStock(item)}
                           >
                             <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            title="Adjust Stock" 
-                            onClick={() => {
-                              // You can implement a separate adjust stock dialog here
-                              alert('Adjust stock functionality coming soon!');
-                            }}
-                          >
-                            <Package className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 

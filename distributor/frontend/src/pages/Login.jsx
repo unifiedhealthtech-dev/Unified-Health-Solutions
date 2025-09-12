@@ -12,12 +12,17 @@ import {
 } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { Building2, User, Lock } from 'lucide-react';
-import { useLoginMutation } from '../services/loginRegisterApi';
+import { useLoginMutation } from '../services/loginApi';
 import { useForm } from 'react-hook-form';
 import { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { setAuth } from '../redux/slices/authSlice';
+import authSlice from '../redux/slices/authSlice';
+
 
 const Login = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [error, setError] = useState('');
 
   const {
@@ -31,18 +36,29 @@ const Login = () => {
     },
   });
 
-  const [login] = useLoginMutation();
+  const [loginApi] = useLoginMutation();
 
   const onSubmit = async (data) => {
     setError('');
 
     try {
-       await login(data).unwrap(); // ← Triggers POST /api/auth/login
-      navigate('/dashboard'); // ✅ Redirect on success
+      const res = await loginApi(data).unwrap(); // ✅ Call login API
+
+      if (res.status) {
+        // ✅ Store user + distributor in Redux
+        dispatch(setAuth({ user: res.user, distributor: res.distributor }));
+
+        // ✅ Redirect to dashboard
+        navigate('/dashboard');
+      } else {
+        navigate('/login');
+        setError(res.message || 'Login failed.');
+      }
     } catch (err) {
       setError(err?.data?.message || 'Invalid username or password. Please try again.');
     }
   };
+  
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-hero">

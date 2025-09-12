@@ -9,11 +9,20 @@ export const inventoryApi = createApi({
   }),
   tagTypes: ['Inventory', 'Dashboard', 'Orders'],
   endpoints: (builder) => ({
-    // Dashboard summary
-    getDashboardData: builder.query({
-      query: () => '/inventory/dashboard',
-      providesTags: ['Dashboard'],
+    
+    // Inventory summary
+     getInventorySummary: builder.query({
+      query: ({ search, category, status } = {}) => {
+        const params = new URLSearchParams();
+        if (search) params.append("search", search);
+        if (category && category !== "all") params.append("category", category);
+        if (status && status !== "all") params.append("status", status);
+
+        return `/inventory/summary?${params.toString()}`;
+      },
+      providesTags: ["InventorySummary"],
     }),
+
 
     // Get all stock items with filters
     getStockItems: builder.query({
@@ -98,7 +107,7 @@ export const inventoryApi = createApi({
 });
 
 export const {
-  useGetDashboardDataQuery,
+  useGetInventorySummaryQuery,
   useGetStockItemsQuery,
   useAddStockMutation,
   useUpdateStockMutation,

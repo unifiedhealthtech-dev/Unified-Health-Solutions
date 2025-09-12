@@ -1,5 +1,6 @@
 import { useState } from "react";
 import React from "react"
+import { useSelector } from "react-redux";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -26,6 +27,8 @@ import {
   useSidebar,
 } from "../../components/ui/sidebar";
 
+
+
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Orders", url: "/orders", icon: ShoppingCart },
@@ -48,28 +51,30 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
+  const distributor = useSelector((state) => state.auth?.distributor);
 
+  
   const collapsed = state === "collapsed";
-
+  
   const isActive = (path) => currentPath === path;
   const getNavCls = ({ isActive }) =>
     isActive
-      ? "bg-primary text-primary-foreground font-medium shadow-sm"
-      : "hover:bg-accent hover:text-accent-foreground";
-
+  ? "bg-primary text-primary-foreground font-medium shadow-sm"
+  : "hover:bg-accent hover:text-accent-foreground";
+  
   return (
     <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
       <SidebarContent className="bg-sidebar">
         {/* Logo Section */}
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary">
+              <Building2 className="w-5 h-5 text-primary-foreground" />
             </div>
             {!collapsed && (
               <div>
-                <h1 className="font-bold text-sidebar-foreground">PharmaDistri</h1>
-                <p className="text-xs text-sidebar-foreground/60">Telangana State</p>
+                <h1 className="font-bold text-sidebar-foreground">{distributor?.name}</h1>
+                <p className="text-xs text-sidebar-foreground/60">{distributor?.state}</p>
               </div>
             )}
           </div>
@@ -84,7 +89,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavCls}>
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="w-4 h-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -103,7 +108,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavCls}>
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="w-4 h-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -122,7 +127,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavCls}>
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="w-4 h-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>

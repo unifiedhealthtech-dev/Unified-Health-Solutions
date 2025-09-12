@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import authenticateToken  from '../middleware/authMiddleware.js';
 import {
-  getDashboardSummary,
+  getInventorySummary,
   getStockItems,
   getStockDetails,
   addStock,
@@ -15,8 +15,8 @@ import {
 
 const inventoryRouter = Router();
 
-// Dashboard summary
-inventoryRouter.get('/dashboard', authenticateToken, getDashboardSummary);
+// Inventory summary
+inventoryRouter.get('/summary', authenticateToken, getInventorySummary);
 
 // Stock items list with filters
 inventoryRouter.get('/stock', authenticateToken, getStockItems);

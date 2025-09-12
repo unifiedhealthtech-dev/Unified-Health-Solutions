@@ -1,55 +1,81 @@
 // controllers/inventoryController.js
-import { Op } from 'sequelize';
+import { Op, fn, col, literal } from 'sequelize';
 import Product from '../models/Product.js';
 import StockItem from '../models/StockItem.js';
 import User from '../models/userSchema.js';
 import sequelize from '../db.js';
 
 // ------------------------------
-// DASHBOARD SUMMARY
+// Inventory SUMMARY
 // ------------------------------
-export const getDashboardSummary = async (req, res) => {
+export const getInventorySummary = async (req, res) => {
   try {
-    const distributorId = req.user.id; // Distributor ID from authenticated user
+    const distributorId = req.user.id;
+    const { search, category, status } = req.query;
+
+    const where = { distributor_id: distributorId };
+
+    if (search) {
+      const s = search.trim();
+      where[Op.or] = [
+        { '$Product.generic_name$': { [Op.iLike]: `%${s}%` } },
+        { '$Product.product_code$': { [Op.iLike]: `%${s}%` } },
+        { batch_number: { [Op.iLike]: `%${s}%` } }
+      ];
+    }
+    if (category && category !== 'all') {
+      where['$Product.category$'] = category;
+    }
+    if (status && status !== 'all') {
+      if (status === 'Expired') {
+        where.expiry_date = { [Op.lt]: new Date() };
+      } else {
+        where.status = status;
+        where.expiry_date = { [Op.gte]: new Date() };
+      }
+    }
 
     const totalProducts = await StockItem.count({
-      where: { distributor_id: distributorId }
+      include: [{ model: Product, as: 'Product' }],
+      where,
     });
 
-    // Low stock items
     const lowStockItems = await StockItem.count({
-      where: {
-        distributor_id: distributorId,
-        current_stock: { [Op.lt]: sequelize.literal('"minimum_stock"') },
-        status: { [Op.not]: 'Expired' }
-      }
+      include: [{ model: Product, as: 'Product' }],
+      where: { ...where, status: 'Low Stock' }
     });
 
-    // Expiring soon items (within 3 months)
     const threeMonthsFromNow = new Date();
     threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
 
     const expiringSoon = await StockItem.count({
+      include: [{ model: Product, as: 'Product' }],
       where: {
-        distributor_id: distributorId,
+        ...where,
         expiry_date: { [Op.between]: [new Date(), threeMonthsFromNow] },
-        status: { [Op.not]: 'Expired' }
+        is_expired: false,
       }
     });
 
-    // Total inventory value
-    const totalValue = await StockItem.sum('ptr', {
-      where: { distributor_id: distributorId, is_expired: false }
-    });
+    // ✅ Fixed total value
+   const result = await StockItem.findAll({
+  attributes: [[fn("SUM", literal("ptr * current_stock")), "total_value"]],
+  include: [{ model: Product, as: "Product", attributes: [] }],
+  where: { ...where, is_expired: false },
+  raw: true,
+});
+
+const totalValue = result[0]?.total_value || 0;
+
 
     res.json({
-      totalProducts,
-      lowStockItems,
-      expiringSoon,
-      totalValue: totalValue || 0
+      total_products: totalProducts,
+      low_stock_items: lowStockItems,
+      expiring_soon: expiringSoon,
+      total_value: totalValue
     });
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error);
+  } catch (err) {
+    console.error('Error fetching summary:', err);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -64,15 +90,14 @@ export const getStockItems = async (req, res) => {
 
     const whereConditions = { distributor_id: distributorId };
 
-   if (search) {
-  const searchTerm = search.trim();
-
-  whereConditions[Op.or] = [
-    { '$Product.generic_name$': { [Op.iLike]: `${searchTerm}%` } },  // starts with
-    { '$Product.product_code$': { [Op.iLike]: `${searchTerm}%` } },
-    { batch_number: { [Op.iLike]: `${searchTerm}%` } }
-  ];
-}
+    if (search) {
+      const searchTerm = search.trim();
+      whereConditions[Op.or] = [
+        { '$Product.generic_name$': { [Op.iLike]: `${searchTerm}%` } },
+        { '$Product.product_code$': { [Op.iLike]: `${searchTerm}%` } },
+        { batch_number: { [Op.iLike]: `${searchTerm}%` } }
+      ];
+    }
 
     if (category && category !== 'undefined' && category !== 'all') {
       whereConditions['$Product.category$'] = category;
@@ -88,7 +113,6 @@ export const getStockItems = async (req, res) => {
       }
     }
 
-    // 1. Get paginated stock items
     const { count, rows } = await StockItem.findAndCountAll({
       include: [{
         model: Product,
@@ -113,35 +137,36 @@ export const getStockItems = async (req, res) => {
       ...item.get({ plain: true }),
       ptr: Number(item.ptr),
       pts: Number(item.pts),
-      taxRate: Number(item.tax_rate),
-      productDetails: {
+      tax_rate: Number(item.tax_rate),
+      product_details: {
         ...item.Product.get({ plain: true }),
         mrp: Number(item.Product?.mrp || 0)
       }
     }));
 
-    // 2. Get **all categories** from distributor’s stock (ignoring pagination)
-    const categories = await Product.findAll({
-      include: [{ 
-        model: StockItem,
-        where: { distributor_id: distributorId }
-      }],
-      attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
-      raw: true
-    });
+// 2. Get all categories from distributor's stock (ignoring pagination)
+const categoriesResult = await Product.findAll({
+  include: [{ 
+    model: StockItem,
+    where: { distributor_id: distributorId }
+  }],
+  attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
+  raw: true
+});
 
-    res.json({
-      total: count,
-      data: formattedStockItems,
-      categories: categories.map(c => c.category).filter(Boolean)  // send array of categories
-    });
+const categories = [...new Set(categoriesResult.map(c => c.category).filter(Boolean))];
+
+res.json({
+  total: count,
+  data: formattedStockItems,
+  categories: categories // just use categories directly
+});
 
   } catch (error) {
     console.error('Error fetching stock items:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-
 
 // ------------------------------
 // ADD STOCK
@@ -150,7 +175,7 @@ export const addStock = async (req, res) => {
   try {
     const distributorId = req.user.id;
     const {
-      product_id, // product_code from frontend
+      product_id,
       batch_number,
       manufacturing_date,
       expiry_date,
@@ -165,22 +190,15 @@ export const addStock = async (req, res) => {
       return res.status(400).json({ message: 'All required fields must be provided' });
     }
 
-    console.log("Trying to find product with code:", product_id);
-
     const product = await Product.findOne({
       where: { product_code: product_id }
     });
 
-    if (!product) {
-      console.error("Product not found for product_code:", product_id);
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    console.log("Product found:", product.id);
+    if (!product) return res.status(404).json({ message: 'Product not found' });
 
     const newStockItem = await StockItem.create({
       distributor_id: distributorId,
-      product_id: product.product_id, // CORRECT, matches your model's PK
+      product_id: product.product_id,
       batch_number,
       manufacturing_date: new Date(manufacturing_date),
       expiry_date: new Date(expiry_date),
@@ -201,7 +219,6 @@ export const addStock = async (req, res) => {
   }
 };
 
-
 // ------------------------------
 // UPDATE STOCK
 // ------------------------------
@@ -210,7 +227,7 @@ export const updateStock = async (req, res) => {
     const distributorId = req.user.id;
     const { stockId } = req.params;
     const {
-      product_id,  // this is actually product_code received from frontend
+      product_id,
       quantity,
       minimum_stock,
       ptr,
@@ -220,26 +237,17 @@ export const updateStock = async (req, res) => {
       expiry_date
     } = req.body;
 
-    // Find the stock item for given stockId and distributor
     const stockItem = await StockItem.findOne({
       where: { stock_id: stockId, distributor_id: distributorId }
     });
-    if (!stockItem) {
-      return res.status(404).json({ message: 'Stock item not found' });
-    }
+    if (!stockItem) return res.status(404).json({ message: 'Stock item not found' });
 
-    // If product_id (actually product_code) is provided, find corresponding product_id PK
     if (product_id !== undefined) {
-      const product = await Product.findOne({
-        where: { product_code: product_id }  // product_code matches frontend product_id field
-      });
-      if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
-      }
-      stockItem.product_id = product.product_id;  // set correct product PK from DB
+      const product = await Product.findOne({ where: { product_code: product_id } });
+      if (!product) return res.status(404).json({ message: 'Product not found' });
+      stockItem.product_id = product.product_id;
     }
 
-    // Update other stock details, parsing values appropriately
     await stockItem.update({
       quantity: quantity !== undefined ? parseInt(quantity) : stockItem.quantity,
       minimum_stock: minimum_stock !== undefined ? parseInt(minimum_stock) : stockItem.minimum_stock,
@@ -264,8 +272,6 @@ export const updateStock = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-
-
 
 // ------------------------------
 // DELETE STOCK
@@ -326,30 +332,24 @@ export const importProducts = async (req, res) => {
 
     for (const productData of products) {
       try {
-        if (!productData.product_id) {
-          console.error('Missing product_id. Skipping record:', productData);
-          continue;
-        }
+        if (!productData.product_code) continue;
 
-        // Check if product exists by product_code
         let product = await Product.findOne({ where: { product_code: productData.product_code } });
         
         if (!product) {
-          // Create new product - must provide product_id explicitly
           product = await Product.create({
-            product_id: productData.product_id,  // Required; string PK not auto-incremented
+            product_id: productData.product_id,
             product_code: productData.product_code,
             generic_name: productData.generic_name,
             unit_size: productData.unit_size,
             mrp: parseFloat(productData.mrp) || 0,
-            group: productData.group_name,
+            group_name: productData.group_name,
             hsn_code: productData.hsn_code,
             category: productData.category,
             is_active: productData.is_active ?? true
           });
         }
 
-        // Create stock item linked to this product
         const stockItem = await StockItem.create({
           distributor_id: distributorId,
           product_id: product.product_id,
@@ -369,7 +369,7 @@ export const importProducts = async (req, res) => {
         importedProducts.push(stockItem);
 
       } catch (err) {
-        console.error('Failed to import this product:', productData, err);
+        console.error('Failed to import product:', productData, err);
       }
     }
 
@@ -432,8 +432,9 @@ function getStockStatus(currentStock, minimumStock) {
   return 'In Stock';
 }
 
-
-
+// ------------------------------
+// GET ALL PRODUCTS
+// ------------------------------
 export const getProducts = async (req, res) => {
   try {
     const products = await Product.findAll({
