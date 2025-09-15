@@ -168,56 +168,95 @@ res.json({
 };
 
 // ------------------------------
-// ADD STOCK
+// ADD BULK STOCK (Updated with decimal tax handling)
 // ------------------------------
-export const addStock = async (req, res) => {
+export const addBulkStock = async (req, res) => {
   try {
     const distributorId = req.user.id;
-    const {
-      product_id,
-      batch_number,
-      manufacturing_date,
-      expiry_date,
-      quantity,
-      minimum_stock,
-      ptr,
-      pts,
-      tax_rate
-    } = req.body;
+    const { stockItems } = req.body;
 
-    if (!product_id || !batch_number || !manufacturing_date || !expiry_date || !quantity || !ptr || !pts) {
-      return res.status(400).json({ message: 'All required fields must be provided' });
+    if (!Array.isArray(stockItems) || stockItems.length === 0) {
+      return res.status(400).json({ message: 'No stock items provided' });
     }
 
-    const product = await Product.findOne({
-      where: { product_code: product_id }
+    const results = {
+      success: [],
+      errors: []
+    };
+
+    for (const item of stockItems) {
+      try {
+        // Skip empty rows (where product_id is empty)
+        if (!item.product_id || item.product_id.trim() === '') {
+          continue;
+        }
+
+        // Check for required fields
+        const { product_id, batch_number, expiry_date, quantity, ptr, pts } = item;
+        
+        if (!batch_number || !expiry_date || !quantity || !ptr || !pts) {
+          results.errors.push({
+            item,
+            error: 'Missing required fields (batch number, expiry date, quantity, PTR, or PTS)'
+          });
+          continue;
+        }
+
+        const product = await Product.findOne({
+          where: { product_code: product_id }
+        });
+
+        if (!product) {
+          results.errors.push({
+            item,
+            error: 'Product not found'
+          });
+          continue;
+        }
+
+        // Parse tax rate with decimal support
+        let taxRate = 12; // default
+        if (item.tax_rate) {
+          taxRate = parseFloat(item.tax_rate);
+          if (isNaN(taxRate)) taxRate = 12;
+        }
+
+        const newStockItem = await StockItem.create({
+          distributor_id: distributorId,
+          product_id: product.product_id,
+          batch_number,
+          manufacturing_date: item.manufacturing_date ? new Date(item.manufacturing_date) : null,
+          expiry_date: new Date(expiry_date),
+          quantity: parseInt(quantity),
+          minimum_stock: parseInt(item.minimum_stock) || 0,
+          ptr: parseFloat(ptr),
+          pts: parseFloat(pts),
+          tax_rate: taxRate,
+          current_stock: parseInt(quantity),
+          is_expired: new Date(expiry_date) < new Date(),
+          status: getStockStatus(parseInt(quantity), parseInt(item.minimum_stock) || 0)
+        });
+
+        results.success.push(newStockItem);
+      } catch (error) {
+        console.error('Error adding stock item:', error);
+        results.errors.push({
+          item,
+          error: error.message
+        });
+      }
+    }
+
+    const totalProcessed = results.success.length + results.errors.length;
+    res.status(201).json({
+      message: `Processed ${totalProcessed} rows. Added ${results.success.length} items, ${results.errors.length} errors.`,
+      ...results
     });
-
-    if (!product) return res.status(404).json({ message: 'Product not found' });
-
-    const newStockItem = await StockItem.create({
-      distributor_id: distributorId,
-      product_id: product.product_id,
-      batch_number,
-      manufacturing_date: new Date(manufacturing_date),
-      expiry_date: new Date(expiry_date),
-      quantity: parseInt(quantity),
-      minimum_stock: parseInt(minimum_stock) || 0,
-      ptr: parseFloat(ptr),
-      pts: parseFloat(pts),
-      tax_rate: parseFloat(tax_rate) || 12,
-      current_stock: parseInt(quantity),
-      is_expired: new Date(expiry_date) < new Date(),
-      status: getStockStatus(parseInt(quantity), parseInt(minimum_stock) || 0)
-    });
-
-    res.status(201).json(newStockItem);
   } catch (error) {
-    console.error('Error adding stock:', error);
+    console.error('Error in bulk stock addition:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-
 // ------------------------------
 // UPDATE STOCK
 // ------------------------------

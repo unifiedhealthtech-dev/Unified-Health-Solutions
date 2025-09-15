@@ -5,7 +5,7 @@ import {
   getInventorySummary,
   getStockItems,
   getStockDetails,
-  addStock,
+  addBulkStock,
   updateStock,
   deleteStock,
   getProducts ,
@@ -25,7 +25,7 @@ inventoryRouter.get('/stock', authenticateToken, getStockItems);
 inventoryRouter.get('/stock/:productId', authenticateToken, getStockDetails);
 
 // Add new stock
-inventoryRouter.post('/stock', authenticateToken, addStock);
+inventoryRouter.post('/bulk-stock', authenticateToken, addBulkStock);
 
 // Update stock item
 inventoryRouter.put('/stock/:stockId', authenticateToken, updateStock);
@@ -35,6 +35,7 @@ inventoryRouter.delete('/stock/:stockId', authenticateToken, deleteStock);
 
 // Get all products
 inventoryRouter.get('/products', authenticateToken, getProducts);
+
 
 // Export products
 inventoryRouter.get('/products/export', authenticateToken, exportProducts);

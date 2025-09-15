@@ -42,7 +42,8 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   useGetStockItemsQuery,
-  useAddStockMutation,
+  // useAddStockMutation,
+  useAddBulkStockMutation,
   useUpdateStockMutation,
   useDeleteStockMutation,
   useImportProductsMutation,
@@ -75,25 +76,25 @@ const Inventory = () => {
   
   // Calculate totalPages from total count from API
   const totalPages = Math.ceil((stockData?.total || 0) / itemsPerPage);
-  const [addStock] = useAddStockMutation();
+  // const [addStock] = useAddStockMutation();
   const [updateStock] = useUpdateStockMutation();
   const [deleteStock] = useDeleteStockMutation();
   const [importProducts] = useImportProductsMutation();
   
   
   
-  // Form state
-  const [stockForm, setStockForm] = useState({
-    product_id: '',          // This holds product_code selected from dropdown
-    batch_number: '',
-    manufacturing_date: '',
-    expiry_date: '',
-    quantity: '',
-    minimum_stock: '',
-    ptr: '',
-    pts: '',
-    tax_rate: 12,
-  });
+// Form state
+const [stockForm, setStockForm] = useState({
+  product_id: '',          // This holds product_code selected from dropdown
+  batch_number: '',
+  manufacturing_date: '',
+  expiry_date: '',
+  quantity: '',
+  minimum_stock: '',
+  ptr: '',
+  pts: '',
+  tax_rate: 0,
+});
   // Call refetch when currentPage changes to fetch new page data
   useEffect(() => {
     refetch();
@@ -174,29 +175,146 @@ const { data: stockSummary } = useGetStockItemsQuery({
 });
 
 
-  const handleAddStock = async (e) => {
-  e.preventDefault();
-  try {
-    await addStock(stockForm).unwrap();  // Calls backend add stock
-    setShowAddStock(false);
-    setStockForm({
-      product_id: '',
-      batch_number: '',
-      manufacturing_date: '',
-      expiry_date: '',
-      quantity: '',
-      minimum_stock: '',
-      ptr: '',
-      pts: '',
-      tax_rate: 12,
-    });
-    refetch(); // Refresh stock table data
-  } catch (err) {
-    console.error('Failed to add stock:', err);
-    alert('Failed to add stock. Please try again.');
-  }
+
+const [showBulkAddStock, setShowBulkAddStock] = useState(false);
+const [bulkStockForm, setBulkStockForm] = useState(
+  Array(10).fill().map(() => ({
+    product_id: '',
+    batch_number: '',
+    manufacturing_date: '',
+    expiry_date: '',
+    quantity: '',
+    minimum_stock: '',
+    ptr: '',
+    pts: '',
+    tax_rate: '',
+  }))
+);
+
+// Add the mutation hook
+const [addBulkStock] = useAddBulkStockMutation();
+
+// Handler for adding a new row
+const addNewRow = () => {
+  setBulkStockForm([...bulkStockForm, {
+    product_id: '',
+    batch_number: '',
+    manufacturing_date: '',
+    expiry_date: '',
+    quantity: '',
+    minimum_stock: '',
+    ptr: '',
+    pts: '',
+    tax_rate: 0,
+  }]);
+};
+// Helper function to check if a row is complete
+const isRowComplete = (row) => {
+  return row.product_id.trim() !== '' && 
+         row.batch_number.trim() !== '' && 
+         row.expiry_date.trim() !== '' && 
+         row.quantity.trim() !== '' && 
+         row.ptr.trim() !== '' && 
+         row.pts.trim() !== '' &&
+         row.tax_rate.trim() !== '';
 };
 
+// Helper function to check if a row is partially filled (will cause error)
+const isRowPartial = (row) => {
+  return row.product_id.trim() !== '' && 
+         (!row.batch_number.trim() || 
+          !row.expiry_date.trim() || 
+          !row.quantity.trim() || 
+          !row.ptr.trim() || 
+          !row.pts.trim() ||
+          !row.tax_rate.trim());
+};
+
+
+// Handler for removing a row
+const removeRow = (index) => {
+  if (bulkStockForm.length <= 1) return;
+  const newForm = [...bulkStockForm];
+  newForm.splice(index, 1);
+  setBulkStockForm(newForm);
+};
+
+// Handler for updating a field in bulk form
+const updateBulkField = (index, field, value) => {
+  const newForm = [...bulkStockForm];
+  newForm[index] = { ...newForm[index], [field]: value };
+  setBulkStockForm(newForm);
+};
+
+// Handler for bulk stock submission
+const handleBulkAddStock = async (e) => {
+  e.preventDefault();
+  try {
+    // Filter out completely empty rows and rows with product_id but missing other required fields
+    const itemsToProcess = bulkStockForm.filter(item => {
+      // Skip completely empty rows
+      if (!item.product_id.trim() && 
+          !item.batch_number.trim() && 
+          !item.expiry_date.trim() && 
+          !item.quantity.trim() && 
+          !item.ptr.trim() && 
+          !item.pts.trim()) {
+        return false;
+      }
+      
+      // Check if this row has a product selected but is missing required fields
+      if (item.product_id.trim() && 
+          (!item.batch_number.trim() || 
+           !item.expiry_date.trim() || 
+           !item.quantity.trim() || 
+           !item.ptr.trim() || 
+           !item.pts.trim())) {
+        return false;
+      }
+      
+      // Only include rows with product_id and all required fields
+      return item.product_id.trim() !== '' && 
+             item.batch_number.trim() !== '' && 
+             item.expiry_date.trim() !== '' && 
+             item.quantity.trim() !== '' && 
+             item.ptr.trim() !== '' && 
+             item.pts.trim() !== '';
+    });
+    
+    if (itemsToProcess.length === 0) {
+      alert('Please fill at least one complete row with all required information');
+      return;
+    }
+
+    const result = await addBulkStock(itemsToProcess).unwrap();
+    
+    if (result.errors && result.errors.length > 0) {
+      alert(`Added ${result.success.length} items with ${result.errors.length} errors. Check console for details.`);
+      console.error('Bulk add errors:', result.errors);
+    } else {
+      alert(`Successfully added ${result.success.length} stock items`);
+    }
+    
+    setShowBulkAddStock(false);
+    setBulkStockForm(
+      Array(10).fill().map(() => ({
+        product_id: '',
+        batch_number: '',
+        manufacturing_date: '',
+        expiry_date: '',
+        quantity: '',
+        minimum_stock: '',
+        ptr: '',
+        pts: '',
+        tax_rate: '',
+      }))
+    );
+    refetch();
+  } catch (err) {
+    console.error('Failed to add bulk stock:', err);
+    alert('Failed to add bulk stock. Please try again.');
+  }
+};
   const handleEditStock = (item) => {
     setEditingItem(item);
     setStockForm({
@@ -217,14 +335,14 @@ const { data: stockSummary } = useGetStockItemsQuery({
     e.preventDefault();
     try {
       await updateStock({
-        stockId: editingItem.stock_id,
-        ...stockForm,
-        quantity: parseInt(stockForm.quantity),
-        minimum_stock: parseInt(stockForm.minimum_stock),
-        ptr: parseFloat(stockForm.ptr),
-        pts: parseFloat(stockForm.pts),
-        tax_rate: parseFloat(stockForm.tax_rate)
-      }).unwrap();
+      stockId: editingItem.stock_id,
+      ...stockForm,
+      quantity: parseInt(stockForm.quantity),
+      minimum_stock: parseInt(stockForm.minimum_stock),
+      ptr: parseFloat(stockForm.ptr),
+      pts: parseFloat(stockForm.pts),
+      tax_rate: parseFloat(stockForm.tax_rate)
+    }).unwrap();
       setShowEditStock(false);
       setEditingItem(null);
       setStockForm({
@@ -236,7 +354,7 @@ const { data: stockSummary } = useGetStockItemsQuery({
         minimum_stock: '',
         ptr: '',
         pts: '',
-        tax_rate: 12,
+        tax_rate: 0,
       });
       refetch(); // Refresh data
     } catch (err) {
@@ -397,161 +515,231 @@ const handleExportCSV = async () => {
             Export CSV
           </Button>
 
-          <Dialog open={showAddStock} onOpenChange={setShowAddStock}>
-            <DialogTrigger asChild>
-              <Button variant="medical" size="lg">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Stock
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Add New Stock</DialogTitle>
-                <DialogDescription>
-                  Enter product details and stock information
-                </DialogDescription>
-              </DialogHeader>
+     
+<Button variant="medical" size="lg" onClick={() => setShowBulkAddStock(true)}>
+  <Plus className="w-4 h-4 mr-2" />
+  Bulk Add Stock
+</Button>
 
-              <form onSubmit={handleAddStock} className="space-y-4">
-  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
-    {/* Product Select Dropdown */}
-    <div className="space-y-2">
-      <Label htmlFor="product_id">Product *</Label>
-      <Select
-        value={stockForm.product_id || ""}
-        onValueChange={(value) => setStockForm({ ...stockForm, product_id: value })}
-        required
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Select Product" />
-        </SelectTrigger>
-        <SelectContent>
-          {products?.map((p) => (
-            <SelectItem key={p.product_code} value={p.product_code}>
-              {p.product_code} - {p.generic_name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+<Dialog open={showBulkAddStock} onOpenChange={setShowBulkAddStock}>
+  <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>Bulk Add Stock</DialogTitle>
+      <DialogDescription>
+        Add multiple stock items at once. Fill at least the required fields (marked with *). 
+        Rows with incomplete required fields will be skipped.
+      </DialogDescription>
+    </DialogHeader>
 
-    {/* Batch Number */}
-    <div className="space-y-2">
-      <Label htmlFor="batch_number">Batch No *</Label>
-      <Input
-        id="batch_number"
-        value={stockForm.batch_number}
-        onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })}
-        placeholder="Batch number"
-        required
-      />
-    </div>
+    <form onSubmit={handleBulkAddStock} className="space-y-4">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-muted">
+              <th className="w-48 p-2 text-left border">Product *</th>
+              <th className="w-32 p-2 text-left border">Batch No *</th>
+              <th className="w-32 p-2 text-left border">Mfg Date</th>
+              <th className="w-32 p-2 text-left border">Expiry Date *</th>
+              <th className="w-24 p-2 text-left border">Quantity *</th>
+              <th className="w-24 p-2 text-left border">Min Stock</th>
+              <th className="w-24 p-2 text-left border">PTR *</th>
+              <th className="w-24 p-2 text-left border">PTS *</th>
+              <th className="w-20 p-2 text-left border">Tax %</th>
+              <th className="w-16 p-2 text-left border">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bulkStockForm.map((row, index) => (
+   <tr 
+  key={index} 
+  className={
+    isRowComplete(row) ? 'bg-green-50' : 
+    isRowPartial(row) ? 'bg-yellow-50' : 
+    row.product_id ? 'bg-blue-50' : ''
+  }
+>
+
+                <td className="p-1 border">
+                  <Select
+                    value={row.product_id}
+                    onValueChange={(value) => updateBulkField(index, 'product_id', value)}
+                    required
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Product" />
+                    </SelectTrigger>
+                    <SelectContent className="overflow-y-auto max-h-60">
+                      {products?.map((p) => (
+                        <SelectItem key={p.product_code} value={p.product_code}>
+                          {p.product_code} - {p.generic_name} ({p.unit_size})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </td>
+                <td className="p-1 border">
+                  <Input
+                    value={row.batch_number}
+                    onChange={(e) => updateBulkField(index, 'batch_number', e.target.value)}
+                    placeholder="Batch No"
+                    className="text-xs"
+                  />
+                </td>
+                <td className="p-1 border">
+                  <Input
+                    type="date"
+                    value={row.manufacturing_date}
+                    onChange={(e) => updateBulkField(index, 'manufacturing_date', e.target.value)}
+                    className="text-xs"
+                  />
+                </td>
+                <td className="p-1 border">
+                  <Input
+                    type="date"
+                    value={row.expiry_date}
+                    onChange={(e) => updateBulkField(index, 'expiry_date', e.target.value)}
+                    className="text-xs"
+                  />
+                </td>
+                <td className="p-1 border">
+                  <Input
+                    type="number"
+                    value={row.quantity}
+                    onChange={(e) => updateBulkField(index, 'quantity', e.target.value)}
+                    placeholder="Qty"
+                    className="text-xs"
+                    min="0"
+                  />
+                </td>
+                <td className="p-1 border">
+                  <Input
+                    type="number"
+                    value={row.minimum_stock}
+                    onChange={(e) => updateBulkField(index, 'minimum_stock', e.target.value)}
+                    placeholder="Min"
+                    className="text-xs"
+                    min="0"
+                  />
+                </td>
+                <td className="p-1 border">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={row.ptr}
+                    onChange={(e) => updateBulkField(index, 'ptr', e.target.value)}
+                    placeholder="PTR"
+                    className="text-xs"
+                    min="0"
+                  />
+                </td>
+                <td className="p-1 border">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={row.pts}
+                    onChange={(e) => updateBulkField(index, 'pts', e.target.value)}
+                    placeholder="PTS"
+                    className="text-xs"
+                    min="0"
+                  />
+                </td>
+               <td className="p-1 border">
+  <Input
+    type="number"
+    step="0.01"
+    value={row.tax_rate}
+    onChange={(e) => updateBulkField(index, 'tax_rate', e.target.value)}
+    placeholder="%"
+    className="text-xs"
+    min="0"
+    max="100"
+  />
+</td>
+
+                <td className="p-1 text-center border">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => removeRow(index)}
+                    disabled={bulkStockForm.length <= 1}
+                    className="p-0 h-7 w-7"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+        <div className="text-sm text-muted-foreground">
+          <p>• Rows with a selected product will be highlighted</p>
+          <p>• Only complete rows (all required fields filled) will be processed</p>
+        </div>
+        
+        <div className="flex gap-2">
+          <Button type="button" onClick={addNewRow} variant="outline" size="sm">
+            <Plus className="w-4 h-4 mr-1" />
+            Add Row
+          </Button>
+<div className="flex items-center justify-between p-2 bg-gray-100 rounded">
+  <div className="text-sm">
+    <span className="flex items-center">
+      <div className="w-3 h-3 mr-1 bg-green-500 rounded-full"></div>
+      <span className="mr-3">Complete: {bulkStockForm.filter(isRowComplete).length}</span>
+    </span>
+    <span className="flex items-center">
+      <div className="w-3 h-3 mr-1 bg-yellow-500 rounded-full"></div>
+      <span className="mr-3">Incomplete: {bulkStockForm.filter(isRowPartial).length}</span>
+    </span>
+    <span className="flex items-center">
+      <div className="w-3 h-3 mr-1 bg-blue-500 rounded-full"></div>
+      <span>Product Only: {bulkStockForm.filter(row => row.product_id && !isRowPartial(row) && !isRowComplete(row)).length}</span>
+    </span>
   </div>
-
-  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-    {/* Manufacturing Date */}
-    <div className="space-y-2">
-      <Label htmlFor="manufacturing_date">Manufacturing Date</Label>
-      <Input
-        id="manufacturing_date"
-        type="date"
-        value={stockForm.manufacturing_date}
-        onChange={(e) => setStockForm({ ...stockForm, manufacturing_date: e.target.value })}
-      />
-    </div>
-
-    {/* Expiry Date */}
-    <div className="space-y-2">
-      <Label htmlFor="expiry_date">Expiry Date *</Label>
-      <Input
-        id="expiry_date"
-        type="date"
-        value={stockForm.expiry_date}
-        onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })}
-        required
-      />
-    </div>
+  <div className="text-sm font-medium">
+    Will process: {bulkStockForm.filter(isRowComplete).length} rows
   </div>
+</div>
+          <Button type="button" variant="outline" size="sm" onClick={() => {
+            setBulkStockForm(
+              Array(10).fill().map(() => ({
+                product_id: '',
+                batch_number: '',
+                manufacturing_date: '',
+                expiry_date: '',
+                quantity: '',
+                minimum_stock: '',
+                ptr: '',
+                pts: '',
+                tax_rate: '',
+              }))
+            );
+          }}>
+            Clear All
+          </Button>
+        </div>
+      </div>
 
-  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-    {/* Quantity */}
-    <div className="space-y-2">
-      <Label htmlFor="quantity">Quantity *</Label>
-      <Input
-        id="quantity"
-        type="number"
-        value={stockForm.quantity}
-        onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })}
-        placeholder="0"
-        required
-      />
-    </div>
-
-    {/* Minimum Stock */}
-    <div className="space-y-2">
-      <Label htmlFor="minimum_stock">Minimum Stock</Label>
-      <Input
-        id="minimum_stock"
-        type="number"
-        value={stockForm.minimum_stock}
-        onChange={(e) => setStockForm({ ...stockForm, minimum_stock: e.target.value })}
-        placeholder="0"
-      />
-    </div>
-  </div>
-
-  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-    {/* PTR */}
-    <div className="space-y-2">
-      <Label htmlFor="ptr">PTR</Label>
-      <Input
-        id="ptr"
-        value={stockForm.ptr}
-        onChange={(e) => setStockForm({ ...stockForm, ptr: e.target.value })}
-        placeholder="0.00"
-      />
-    </div>
-
-    {/* PTS */}
-    <div className="space-y-2">
-      <Label htmlFor="pts">PTS</Label>
-      <Input
-        id="pts"
-        value={stockForm.pts}
-        onChange={(e) => setStockForm({ ...stockForm, pts: e.target.value })}
-        placeholder="0.00"
-      />
-    </div>
-
-    {/* Tax Rate Select */}
-    <div className="space-y-2">
-      <Label htmlFor="tax_rate">Tax %</Label>
-      <Select
-        onValueChange={(value) => setStockForm({ ...stockForm, tax_rate: Number(value) })}
-        value={stockForm.tax_rate.toString()}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Select Tax %" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="0">0%</SelectItem>
-          <SelectItem value="5">5%</SelectItem>
-          <SelectItem value="12">12%</SelectItem>
-          <SelectItem value="18">18%</SelectItem>
-          <SelectItem value="28">28%</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  </div>
-
-  <div className="flex justify-end gap-3 pt-4">
-    <Button type="button" variant="outline" onClick={() => setShowAddStock(false)}>Cancel</Button>
-    <Button type="submit" variant="medical">Add Stock</Button>
-  </div>
-</form>
-            </DialogContent>
-          </Dialog>
+      <div className="flex justify-end gap-3 pt-2 border-t">
+        <Button type="button" variant="outline" onClick={() => setShowBulkAddStock(false)}>
+          Cancel
+        </Button>
+       <Button 
+  type="submit" 
+  variant="medical"
+  disabled={bulkStockForm.filter(isRowComplete).length === 0}
+>
+  Add {bulkStockForm.filter(isRowComplete).length} Stock Items
+</Button>
+      </div>
+    </form>
+  </DialogContent>
+</Dialog>
         </div>
       </div>
 
@@ -917,7 +1105,7 @@ const handleExportCSV = async () => {
     <Label htmlFor="edit_tax_rate">Tax %</Label>
     <Input
       id="edit_tax_rate"
-      type="number"
+      type="decimal"
       value={stockForm.tax_rate ?? ""}
       onChange={(e) => setStockForm({ ...stockForm, tax_rate: e.target.value })}
       placeholder="0"

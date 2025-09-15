@@ -33,16 +33,15 @@ export const inventoryApi = createApi({
       providesTags: ['Inventory'],
     }),
 
-    // Add new stock
-    addStock: builder.mutation({
-      query: (stockData) => ({
-        url: '/inventory/stock',
-        method: 'POST',
-        body: stockData,
-      }),
-      invalidatesTags: ['Inventory', 'Dashboard'],
-    }),
 
+    // Add bulk stock
+addBulkStock: builder.mutation({
+  query: (stockItems) => ({
+    url: '/inventory/bulk-stock',
+    method: 'POST',
+    body: { stockItems }
+  })
+}),
     // Update stock
     updateStock: builder.mutation({
       query: ({ stockId, ...stockData }) => ({
@@ -77,7 +76,7 @@ export const inventoryApi = createApi({
      getProducts: builder.query({
       query: () => '/inventory/products', 
     }),
-
+ 
     // Export products to CSV
     exportProducts: builder.query({
       query: () => '/inventory/products/export',
@@ -109,11 +108,11 @@ export const inventoryApi = createApi({
 export const {
   useGetInventorySummaryQuery,
   useGetStockItemsQuery,
-  useAddStockMutation,
+  useAddBulkStockMutation,
   useUpdateStockMutation,
   useDeleteStockMutation,
   useImportProductsMutation,
   useExportProductsQuery,
   useGetRecentOrdersQuery,
-  useGetProductsQuery
+  useGetProductsQuery,
 } = inventoryApi;
