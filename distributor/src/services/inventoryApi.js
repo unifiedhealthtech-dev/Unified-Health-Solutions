@@ -1,4 +1,3 @@
-// src/store/api/inventoryApi.js
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 export const inventoryApi = createApi({
@@ -9,9 +8,9 @@ export const inventoryApi = createApi({
   }),
   tagTypes: ['Inventory', 'Dashboard', 'Orders'],
   endpoints: (builder) => ({
-    
+
     // Inventory summary
-     getInventorySummary: builder.query({
+    getInventorySummary: builder.query({
       query: ({ search, category, status } = {}) => {
         const params = new URLSearchParams();
         if (search) params.append("search", search);
@@ -23,7 +22,6 @@ export const inventoryApi = createApi({
       providesTags: ["InventorySummary"],
     }),
 
-
     // Get all stock items with filters
     getStockItems: builder.query({
       query: (params) => {
@@ -33,21 +31,21 @@ export const inventoryApi = createApi({
       providesTags: ['Inventory'],
     }),
 
+    // Add bulk stock (✅ now uses product_code in backend request)
+    addBulkStock: builder.mutation({
+      query: (stockItems) => ({
+        url: '/inventory/bulk-stock',
+        method: 'POST',
+        body: { stockItems } // stockItems should contain product_code, NOT product_id
+      })
+    }),
 
-    // Add bulk stock
-addBulkStock: builder.mutation({
-  query: (stockItems) => ({
-    url: '/inventory/bulk-stock',
-    method: 'POST',
-    body: { stockItems }
-  })
-}),
-    // Update stock
+    // Update stock (✅ ensure product_code is used, not product_id)
     updateStock: builder.mutation({
       query: ({ stockId, ...stockData }) => ({
         url: `/inventory/stock/${stockId}`,
         method: 'PUT',
-        body: stockData,
+        body: stockData, // backend expects product_code now
       }),
       invalidatesTags: ['Inventory', 'Dashboard'],
     }),
@@ -61,22 +59,22 @@ addBulkStock: builder.mutation({
       invalidatesTags: ['Inventory', 'Dashboard'],
     }),
 
-    // Import products from CSV
+    // Import products from CSV (✅ expects product_code instead of product_id)
     importProducts: builder.mutation({
       query: (products) => ({
         url: '/inventory/products/import',
         method: 'POST',
-        body: { products },
+        body: { products }, // products must include product_code as primary key
         credentials: 'include',
       }),
       invalidatesTags: ['Inventory', 'Dashboard'],
     }),
 
     // Get all products
-     getProducts: builder.query({
+    getProducts: builder.query({
       query: () => '/inventory/products', 
     }),
- 
+
     // Export products to CSV
     exportProducts: builder.query({
       query: () => '/inventory/products/export',
@@ -102,7 +100,11 @@ addBulkStock: builder.mutation({
       },
       providesTags: ['Orders'],
     }),
+    getProductBatches : builder.query({
+      query: (product_code) => `/inventory/products/${product_code}/batches`,
+      providesTags: ['Inventory'],
   }),
+})
 });
 
 export const {
@@ -115,4 +117,5 @@ export const {
   useExportProductsQuery,
   useGetRecentOrdersQuery,
   useGetProductsQuery,
+  useGetProductBatchesQuery,
 } = inventoryApi;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle
 } from "../ui/card";
@@ -13,11 +13,13 @@ import {
 } from "../ui/table";
 import { Badge } from "../ui/badge";
 import {
-  Plus, RotateCcw, CheckCircle, X, Printer, AlertTriangle
+  Plus, RotateCcw, CheckCircle, X, Printer, AlertTriangle, Trash2, Eye, Edit
 } from "lucide-react";
 
 const Returns = () => {
-  const [returns] = useState([
+  const createReturnCardRef = useRef(null);
+
+  const [returns, setReturns] = useState([
     {
       returnNo: "RET-2024-001",
       returnDate: "2024-01-15",
@@ -63,6 +65,9 @@ const Returns = () => {
     },
   ]);
 
+  const [selectedReturn, setSelectedReturn] = useState(null);
+  const [isCreatingReturn, setIsCreatingReturn] = useState(false);
+
   const returnSummary = {
     totalReturns: returns.length,
     pendingReturns: returns.filter((r) => r.status === "Pending").length,
@@ -87,6 +92,11 @@ const Returns = () => {
   };
 
   const addReturnItem = () => {
+    if (!newReturn.billNo) {
+      alert('Please enter the original bill number first before adding items.');
+      return;
+    }
+    
     setReturnItems([
       ...returnItems,
       {
@@ -111,18 +121,238 @@ const Returns = () => {
     });
   };
 
+  const handleCreateReturn = () => {
+    if (!newReturn.billNo) {
+      alert('Please enter the original bill number.');
+      return;
+    }
+    
+    if (returnItems.length === 0) {
+      alert('Please add at least one item to the return.');
+      return;
+    }
+
+    // Validate return items
+    const hasInvalidItems = returnItems.some(item => 
+      !item.productName || !item.batch || !item.reason || item.creditAmount <= 0
+    );
+    
+    if (hasInvalidItems) {
+      alert('Please fill in all required fields for return items.');
+      return;
+    }
+
+    const returnToAdd = {
+      ...newReturn,
+      customerName: "N/A", // Placeholder
+      totalCreditAmount: returnItems.reduce((sum, item) => sum + item.creditAmount, 0),
+      status: "Pending",
+      reason: "N/A",
+    };
+    
+    setReturns(prev => [returnToAdd, ...prev]);
+    
+    // Show success message
+    alert(`Return ${newReturn.returnNo} created successfully!`);
+    
+    // Reset form
+    setNewReturn({
+      returnNo: `RET-2024-00${returns.length + 2}`,
+      returnDate: new Date().toISOString().split("T")[0],
+      billNo: "",
+    });
+    setReturnItems([]);
+    setIsCreatingReturn(false);
+  };
+
+  const handleResetNewReturn = () => {
+    setNewReturn({
+      returnNo: `RET-2024-00${returns.length + 2}`,
+      returnDate: new Date().toISOString().split("T")[0],
+      billNo: "",
+    });
+    setReturnItems([]);
+    setIsCreatingReturn(true);
+    if (createReturnCardRef.current) {
+      createReturnCardRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const updateReturnStatus = (returnNo, status) => {
+    const returnItem = returns.find(r => r.returnNo === returnNo);
+    if (returnItem) {
+      const confirmMessage = status === 'Approved' 
+        ? `Are you sure you want to approve return ${returnNo}?`
+        : `Are you sure you want to reject return ${returnNo}?`;
+      
+      if (window.confirm(confirmMessage)) {
+        setReturns(returns.map(r => r.returnNo === returnNo ? { ...r, status } : r));
+        alert(`Return ${returnNo} has been ${status.toLowerCase()}.`);
+      }
+    }
+  };
+
+  const deleteReturn = (returnNo) => {
+    if (window.confirm(`Are you sure you want to delete return ${returnNo}? This action cannot be undone.`)) {
+      setReturns(returns.filter(r => r.returnNo !== returnNo));
+      alert(`Return ${returnNo} has been deleted.`);
+    }
+  };
+
+  const removeReturnItem = (index) => {
+    if (window.confirm('Are you sure you want to remove this item from the return?')) {
+      setReturnItems(returnItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const handlePrintReturn = (returnNo) => {
+    const returnItem = returns.find(r => r.returnNo === returnNo);
+    if (returnItem) {
+      // Create a print-friendly version
+      const printContent = `
+        <html>
+          <head>
+            <title>Return Details - ${returnNo}</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+              .details { margin: 20px 0; }
+              .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+              .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              .table th { background-color: #f2f2f2; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>RETURN DETAILS</h1>
+              <h2>Return No: ${returnNo}</h2>
+            </div>
+            <div class="details">
+              <p><strong>Date:</strong> ${returnItem.returnDate}</p>
+              <p><strong>Bill No:</strong> ${returnItem.billNo}</p>
+              <p><strong>Customer:</strong> ${returnItem.customerName}</p>
+              <p><strong>Status:</strong> ${returnItem.status}</p>
+              <p><strong>Total Credit Amount:</strong> ₹${returnItem.totalCreditAmount.toFixed(2)}</p>
+            </div>
+          </body>
+        </html>
+      `;
+      
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
+  const handlePrintCreditNote = () => {
+    if (returnItems.length === 0) {
+      alert('No items to print in credit note.');
+      return;
+    }
+
+    const totalAmount = returnItems.reduce((sum, item) => sum + item.creditAmount, 0);
+    const printContent = `
+      <html>
+        <head>
+          <title>Credit Note</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            .table th { background-color: #f2f2f2; }
+            .total { text-align: right; font-weight: bold; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>CREDIT NOTE</h1>
+            <h2>Return No: ${newReturn.returnNo}</h2>
+            <p>Date: ${newReturn.returnDate}</p>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Product Name</th>
+                <th>Batch</th>
+                <th>Qty</th>
+                <th>Expiry</th>
+                <th>Reason</th>
+                <th>Credit Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${returnItems.map(item => `
+                <tr>
+                  <td>${item.productName}</td>
+                  <td>${item.batch}</td>
+                  <td>${item.qty}</td>
+                  <td>${item.expiry}</td>
+                  <td>${item.reason}</td>
+                  <td>₹${item.creditAmount.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="total">
+            <p>Total Credit Amount: ₹${totalAmount.toFixed(2)}</p>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  const handleCancelReturn = () => {
+    if (returnItems.length > 0) {
+      if (window.confirm('Are you sure you want to cancel this return? All items will be removed.')) {
+        setReturnItems([]);
+        alert('Return cancelled successfully.');
+      }
+    } else {
+      alert('No items to cancel.');
+    }
+  };
+
+  const handleApproveReturn = () => {
+    if (returnItems.length === 0) {
+      alert('No items to approve in this return.');
+      return;
+    }
+
+    const totalAmount = returnItems.reduce((sum, item) => sum + item.creditAmount, 0);
+    if (window.confirm(`Are you sure you want to approve this return with a total credit amount of ₹${totalAmount.toFixed(2)}?`)) {
+      alert('Return approved successfully! Credit note has been generated.');
+      setReturnItems([]);
+      setNewReturn({
+        returnNo: `RET-2024-00${returns.length + 2}`,
+        returnDate: new Date().toISOString().split("T")[0],
+        billNo: "",
+      });
+    }
+  };
+
+  const handleViewReturn = (returnNo) => {
+    const returnItem = returns.find(r => r.returnNo === returnNo);
+    if (returnItem) {
+      setSelectedReturn(returnItem);
+      alert(`Viewing details for return ${returnNo}:\n\nDate: ${returnItem.returnDate}\nBill No: ${returnItem.billNo}\nCustomer: ${returnItem.customerName}\nStatus: ${returnItem.status}\nCredit Amount: ₹${returnItem.totalCreditAmount.toFixed(2)}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row gap-4 justify-between">
         <div>
-          <h2 className="text-3xl font-bold">Returns & Credit Notes</h2>
-          <p className="text-muted-foreground">
-            Manage product returns and credit notes
-          </p>
         </div>
         <div className="flex gap-2">
-          <Button>
+          <Button onClick={handleResetNewReturn}>
             <Plus className="w-4 h-4 mr-2" />
             Add Return
           </Button>
@@ -187,7 +417,7 @@ const Returns = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* New Return Form */}
-        <Card className="shadow-medium">
+        <Card className="shadow-medium" ref={createReturnCardRef}>
           <CardHeader>
             <CardTitle>Create Return</CardTitle>
             <CardDescription>Initialize a new product return</CardDescription>
@@ -224,7 +454,9 @@ const Returns = () => {
                 }
               />
             </div>
-            <Button className="w-full">Create Return</Button>
+            <Button className="w-full" onClick={handleCreateReturn} disabled={!newReturn.billNo}>
+              Create Return
+            </Button>
           </CardContent>
         </Card>
 
@@ -262,14 +494,49 @@ const Returns = () => {
                     <TableCell>{getStatusBadge(returnItem.status)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline">
-                          <CheckCircle className="w-3 h-3" />
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => handleViewReturn(returnItem.returnNo)}
+                          title="View Details"
+                        >
+                          <Eye className="w-3 h-3" />
                         </Button>
-                        <Button size="sm" variant="outline">
+                        {returnItem.status === 'Pending' && (
+                          <>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => updateReturnStatus(returnItem.returnNo, 'Approved')}
+                              title="Approve Return"
+                            >
+                              <CheckCircle className="w-3 h-3" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="destructive" 
+                              onClick={() => updateReturnStatus(returnItem.returnNo, 'Rejected')}
+                              title="Reject Return"
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </>
+                        )}
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => handlePrintReturn(returnItem.returnNo)}
+                          title="Print Return Details"
+                        >
                           <Printer className="w-3 h-3" />
                         </Button>
-                        <Button size="sm" variant="outline">
-                          <X className="w-3 h-3" />
+                        <Button 
+                          size="sm" 
+                          variant="destructive" 
+                          onClick={() => deleteReturn(returnItem.returnNo)}
+                          title="Delete Return"
+                        >
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
                     </TableCell>
@@ -289,7 +556,7 @@ const Returns = () => {
               <CardTitle>Return Items</CardTitle>
               <CardDescription>Products in current return request</CardDescription>
             </div>
-            <Button onClick={addReturnItem}>
+            <Button onClick={addReturnItem} disabled={!newReturn.billNo}>
               <Plus className="w-4 h-4 mr-2" />
               Add Item
             </Button>
@@ -383,22 +650,23 @@ const Returns = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline">
-                      <X className="w-3 h-3" />
+                    <Button size="sm" variant="destructive" onClick={() => removeReturnItem(index)}>
+                      <Trash2 className="w-3 h-3" />
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-
           <div className="flex justify-end gap-2 mt-6">
-            <Button variant="outline">Cancel</Button>
-            <Button>
+            <Button variant="outline" onClick={handleCancelReturn}>
+              Cancel
+            </Button>
+            <Button onClick={handleApproveReturn} disabled={returnItems.length === 0}>
               <CheckCircle className="w-4 h-4 mr-2" />
               Approve Return
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handlePrintCreditNote} disabled={returnItems.length === 0}>
               <Printer className="w-4 h-4 mr-2" />
               Print Credit Note
             </Button>

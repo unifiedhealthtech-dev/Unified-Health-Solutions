@@ -2,14 +2,9 @@ import { DataTypes } from 'sequelize';
 import sequelize from "../db.js";
 
 const Product = sequelize.define('Product', {
-  product_id: {
-    type: DataTypes.STRING(20),
-    primaryKey: true,
-    allowNull: false,
-    unique: true
-  },
   product_code: {
     type: DataTypes.STRING(50),
+    primaryKey: true,  // ✅ now primary key
     allowNull: false,
     unique: true
   },
@@ -24,11 +19,6 @@ const Product = sequelize.define('Product', {
   mrp: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false
-  },
-  group: {
-    type: DataTypes.STRING(100),
-    allowNull: false,
-    field: 'group_name'
   },
   hsn_code: {
     type: DataTypes.STRING(20),

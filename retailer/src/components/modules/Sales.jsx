@@ -12,8 +12,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "../ui/table";
 import { Separator } from "../ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import { toast } from "sonner";
 import {
-  Receipt, Printer, Mail, Download, Plus, Trash2
+  Receipt, Printer, Mail, Download, Plus, Trash2, X, Check
 } from "lucide-react";
 
 const Sales = () => {
@@ -23,6 +25,15 @@ const Sales = () => {
     billType: "Cash",
     customerName: "",
     customerMobile: "",
+  });
+
+  // State for bill management
+  const [isBillGenerated, setIsBillGenerated] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailData, setEmailData] = useState({
+    to: "",
+    subject: "",
+    message: ""
   });
 
   const [billItems, setBillItems] = useState([
@@ -98,21 +109,213 @@ const Sales = () => {
     });
   };
 
+  // Handler functions for buttons
+  const handleGenerateBill = () => {
+    if (billItems.length === 0) {
+      toast.error("Please add at least one item to the bill");
+      return;
+    }
+    
+    if (!billData.customerName.trim()) {
+      toast.error("Please enter customer name");
+      return;
+    }
+
+    // Generate new bill number
+    const newBillNo = `BILL-2024-${String(Date.now()).slice(-6)}`;
+    setBillData({ ...billData, billNo: newBillNo });
+    setIsBillGenerated(true);
+    toast.success("Bill generated successfully!");
+  };
+
+  const handleCancelBill = () => {
+    if (window.confirm("Are you sure you want to cancel this bill? All data will be lost.")) {
+      setBillData({
+        billNo: `BILL-2024-${String(Date.now()).slice(-6)}`,
+        billDate: new Date().toISOString().split("T")[0],
+        billType: "Cash",
+        customerName: "",
+        customerMobile: "",
+      });
+      setBillItems([]);
+      setIsBillGenerated(false);
+      toast.info("Bill cancelled");
+    }
+  };
+
+  const handlePrintBill = () => {
+    if (!isBillGenerated) {
+      toast.error("Please generate the bill first");
+      return;
+    }
+    
+    // Create a printable version of the bill
+    const printContent = generatePrintContent();
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+    toast.success("Bill sent to printer");
+  };
+
+  const handleEmailBill = () => {
+    if (!isBillGenerated) {
+      toast.error("Please generate the bill first");
+      return;
+    }
+    setEmailData({
+      to: billData.customerMobile ? `${billData.customerName}@example.com` : "",
+      subject: `Bill ${billData.billNo} - ${billData.billDate}`,
+      message: `Dear ${billData.customerName},\n\nPlease find attached your bill ${billData.billNo} dated ${billData.billDate}.\n\nTotal Amount: ₹${billTotals.total.toFixed(2)}\n\nThank you for your business!`
+    });
+    setShowEmailDialog(true);
+  };
+
+  const handleSendEmail = () => {
+    if (!emailData.to.trim()) {
+      toast.error("Please enter recipient email");
+      return;
+    }
+    
+    // Simulate email sending
+    toast.success(`Bill sent to ${emailData.to}`);
+    setShowEmailDialog(false);
+  };
+
+  const handleExportBill = () => {
+    if (!isBillGenerated) {
+      toast.error("Please generate the bill first");
+      return;
+    }
+    
+    // Create CSV content
+    const csvContent = generateCSVContent();
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bill-${billData.billNo}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success("Bill exported successfully");
+  };
+
+  const generatePrintContent = () => {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Bill ${billData.billNo}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .bill-info { margin-bottom: 20px; }
+          .customer-info { margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; }
+          .total { text-align: right; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>PharmaRetail</h1>
+          <h2>Bill No: ${billData.billNo}</h2>
+        </div>
+        
+        <div class="bill-info">
+          <p><strong>Date:</strong> ${billData.billDate}</p>
+          <p><strong>Type:</strong> ${billData.billType}</p>
+        </div>
+        
+        <div class="customer-info">
+          <p><strong>Customer:</strong> ${billData.customerName}</p>
+          <p><strong>Mobile:</strong> ${billData.customerMobile}</p>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Batch</th>
+              <th>Qty</th>
+              <th>Rate</th>
+              <th>Tax %</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${billItems.map(item => `
+              <tr>
+                <td>${item.name}</td>
+                <td>${item.batch}</td>
+                <td>${item.qty}</td>
+                <td>₹${item.rate.toFixed(2)}</td>
+                <td>${item.tax}%</td>
+                <td>₹${item.netValue.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <div class="total">
+          <p>Subtotal: ₹${billTotals.subtotal.toFixed(2)}</p>
+          <p>Tax: ₹${billTotals.tax.toFixed(2)}</p>
+          <p><strong>Total: ₹${billTotals.total.toFixed(2)}</strong></p>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const generateCSVContent = () => {
+    const headers = ['Product Code', 'Name', 'Batch', 'Expiry', 'Qty', 'Rate', 'Tax %', 'Net Value'];
+    const rows = billItems.map(item => [
+      item.productCode,
+      item.name,
+      item.batch,
+      item.expiry,
+      item.qty,
+      item.rate,
+      item.tax,
+      item.netValue
+    ]);
+    
+    const csvContent = [
+      ['Bill No', billData.billNo],
+      ['Date', billData.billDate],
+      ['Customer', billData.customerName],
+      ['Mobile', billData.customerMobile],
+      ['Type', billData.billType],
+      [],
+      headers,
+      ...rows,
+      [],
+      ['Subtotal', billTotals.subtotal],
+      ['Tax', billTotals.tax],
+      ['Total', billTotals.total]
+    ].map(row => row.join(',')).join('\n');
+    
+    return csvContent;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row gap-4 justify-between">
         <div>
-          <h2 className="text-3xl font-bold">Sales & Billing</h2>
-          <p className="text-muted-foreground">
-            Generate bills and manage sales transactions
-          </p>
         </div>
         <div className="flex gap-2">
-          <Button>
+          <Button onClick={handleGenerateBill} disabled={isBillGenerated}>
             <Receipt className="w-4 h-4 mr-2" />
-            Generate Bill
+            {isBillGenerated ? "Bill Generated" : "Generate Bill"}
           </Button>
+          {isBillGenerated && (
+            <Button variant="outline" onClick={handleCancelBill}>
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+          )}
         </div>
       </div>
 
@@ -303,26 +506,77 @@ const Sales = () => {
           </Table>
 
           <div className="flex justify-end gap-2 mt-6">
-            <Button variant="outline">Cancel</Button>
-            <Button>
-              <Receipt className="w-4 h-4 mr-2" />
-              Generate Bill
+            <Button variant="outline" onClick={handleCancelBill}>
+              <X className="w-4 h-4 mr-2" />
+              Cancel
             </Button>
-            <Button variant="outline">
+            <Button onClick={handleGenerateBill} disabled={isBillGenerated}>
+              <Receipt className="w-4 h-4 mr-2" />
+              {isBillGenerated ? "Bill Generated" : "Generate Bill"}
+            </Button>
+            <Button variant="outline" onClick={handlePrintBill} disabled={!isBillGenerated}>
               <Printer className="w-4 h-4 mr-2" />
               Print
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleEmailBill} disabled={!isBillGenerated}>
               <Mail className="w-4 h-4 mr-2" />
               Email
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExportBill} disabled={!isBillGenerated}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Email Dialog */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email Bill</DialogTitle>
+            <DialogDescription>Send the bill to customer via email</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="emailTo">To</Label>
+              <Input
+                id="emailTo"
+                type="email"
+                placeholder="customer@example.com"
+                value={emailData.to}
+                onChange={(e) => setEmailData({...emailData, to: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emailSubject">Subject</Label>
+              <Input
+                id="emailSubject"
+                value={emailData.subject}
+                onChange={(e) => setEmailData({...emailData, subject: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emailMessage">Message</Label>
+              <textarea
+                id="emailMessage"
+                className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md resize-none"
+                value={emailData.message}
+                onChange={(e) => setEmailData({...emailData, message: e.target.value})}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSendEmail}>
+              <Mail className="w-4 h-4 mr-2" />
+              Send Email
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

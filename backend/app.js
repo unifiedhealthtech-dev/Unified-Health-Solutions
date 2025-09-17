@@ -14,13 +14,13 @@ const PORT = process.env.PORT || 5000;
 app.use(express.json());
 // Middleware to parse cookies  
 app.use(cookieParser());
-const orginOptions = {
-  origin: 'http://localhost:8080', // Adjust as needed
+const originOptions = {
+  origin: ['http://localhost:8080', 'http://localhost:8081'], // Adjust as needed
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials : true, // Allow cookies
 };
 
-app.use(cors(orginOptions));
+app.use(cors(originOptions));
 // Serve static files
 
 

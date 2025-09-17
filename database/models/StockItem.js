@@ -17,12 +17,12 @@ const StockItem = sequelize.define('StockItem', {
       key: 'distributor_id'
     }
   },
-  product_id: {
-    type: DataTypes.STRING(20),
+  product_code: {   // ✅ replaced product_id with product_code
+    type: DataTypes.STRING(50),
     allowNull: false,
     references: {
       model: Product,
-      key: 'product_id'
+      key: 'product_code'
     }
   },
   batch_number: {
@@ -38,12 +38,12 @@ const StockItem = sequelize.define('StockItem', {
     allowNull: false
   },
   quantity: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
     defaultValue: 0
   },
   minimum_stock: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
     defaultValue: 0
   },
@@ -61,7 +61,7 @@ const StockItem = sequelize.define('StockItem', {
     defaultValue: 0
   },
   current_stock: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
     defaultValue: 0
   },
@@ -84,10 +84,10 @@ const StockItem = sequelize.define('StockItem', {
 });
 
 // ✅ Associations
-StockItem.belongsTo(Product, { foreignKey: 'product_id' });
+StockItem.belongsTo(Product, { foreignKey: 'product_code' });
 StockItem.belongsTo(Distributor, { foreignKey: 'distributor_id', as: 'Distributor' });
 
-Product.hasMany(StockItem, { foreignKey: 'product_id' });
+Product.hasMany(StockItem, { foreignKey: 'product_code' });
 Distributor.hasMany(StockItem, { foreignKey: 'distributor_id', as: 'StockItems' });
 
 export default StockItem;

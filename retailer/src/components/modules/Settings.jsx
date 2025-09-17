@@ -20,11 +20,16 @@ import {
   Trash2, 
   Upload, 
   Save,
-  Download
+  Download,
+  RefreshCw,
+  Eye,
+  CheckCircle,
+  AlertTriangle,
+  Clock
 } from "lucide-react";
 
 const SettingsModule = () => {
-  const [users] = useState([
+  const [users, setUsers] = useState([
     { id: 1, name: "Admin User", email: "admin@pharmacy.com", role: "Administrator", status: "Active" },
     { id: 2, name: "Cashier 1", email: "cashier1@pharmacy.com", role: "Cashier", status: "Active" },
     { id: 3, name: "Inventory Manager", email: "inventory@pharmacy.com", role: "Manager", status: "Active" },
@@ -58,22 +63,240 @@ const SettingsModule = () => {
     enableEmail: true
   });
 
+  const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [isTestingSMS, setIsTestingSMS] = useState(false);
+
+  // Button functionality functions
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    
+    // Simulate save process
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setIsSaving(false);
+    alert('All settings have been saved successfully!');
+  };
+
+  const handleExportSettings = async () => {
+    setIsExporting(true);
+    
+    // Create settings export
+    const settingsData = {
+      pharmacyProfile,
+      emailSettings,
+      users: users.map(user => ({ ...user, password: '***' })), // Hide passwords
+      exportDate: new Date().toISOString(),
+      version: '1.0'
+    };
+    
+    const content = JSON.stringify(settingsData, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pharmacy_settings_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    setIsExporting(false);
+    alert('Settings exported successfully!');
+  };
+
+  const handleAddUser = () => {
+    if (!newUser.name || !newUser.email || !newUser.role || !newUser.password) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+
+    if (!newUser.email.includes('@')) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+
+    if (newUser.password.length < 6) {
+      alert('Password must be at least 6 characters long.');
+      return;
+    }
+
+    const newUserData = {
+      id: users.length + 1,
+      ...newUser,
+      status: 'Active'
+    };
+
+    setUsers([...users, newUserData]);
+    setNewUser({ name: '', email: '', role: '', password: '' });
+    alert(`User "${newUser.name}" has been added successfully!`);
+  };
+
+  const handleEditUser = (userId) => {
+    const user = users.find(u => u.id === userId);
+    if (user) {
+      const newName = prompt('Enter new name:', user.name);
+      const newEmail = prompt('Enter new email:', user.email);
+      const newRole = prompt('Enter new role (Administrator/Manager/Cashier/Inventory):', user.role);
+      
+      if (newName && newEmail && newRole) {
+        setUsers(users.map(u => 
+          u.id === userId 
+            ? { ...u, name: newName, email: newEmail, role: newRole }
+            : u
+        ));
+        alert('User updated successfully!');
+      }
+    }
+  };
+
+  const handleDeleteUser = (userId) => {
+    const user = users.find(u => u.id === userId);
+    if (user) {
+      if (window.confirm(`Are you sure you want to delete user "${user.name}"? This action cannot be undone.`)) {
+        setUsers(users.filter(u => u.id !== userId));
+        alert(`User "${user.name}" has been deleted.`);
+      }
+    }
+  };
+
+  const handleUploadLogo = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/jpg';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+          alert('File size must be less than 5MB.');
+          return;
+        }
+        alert(`Logo "${file.name}" uploaded successfully!`);
+      }
+    };
+    input.click();
+  };
+
+  const handlePreviewTemplate = () => {
+    const previewContent = `
+Invoice Preview:
+================
+
+Invoice No: BILL-2024-001
+Date: ${new Date().toLocaleDateString()}
+Pharmacy: ${pharmacyProfile.name}
+Address: ${pharmacyProfile.address}
+
+Items:
+------
+[Product details would appear here]
+
+Total: ₹0.00
+
+Footer: Thank you for your business!
+Terms: All sales are final. No refunds without proper documentation.
+    `;
+    alert(previewContent);
+  };
+
+  const handleResetTemplate = () => {
+    if (window.confirm('Are you sure you want to reset the invoice template to default settings?')) {
+      alert('Invoice template has been reset to default settings.');
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!emailSettings.enableEmail) {
+      alert('Please enable email notifications first.');
+      return;
+    }
+
+    setIsTestingEmail(true);
+    
+    // Simulate email test
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setIsTestingEmail(false);
+    alert(`Test email sent successfully to ${emailSettings.username}!`);
+  };
+
+  const handleTestSMS = async () => {
+    if (!emailSettings.enableSMS) {
+      alert('Please enable SMS notifications first.');
+      return;
+    }
+
+    setIsTestingSMS(true);
+    
+    // Simulate SMS test
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setIsTestingSMS(false);
+    alert('Test SMS sent successfully!');
+  };
+
+  const handleCreateBackup = async () => {
+    setIsCreatingBackup(true);
+    
+    // Simulate backup creation
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    setIsCreatingBackup(false);
+    alert('Backup created successfully! Backup file: pharmacy_backup_' + new Date().toISOString().split('T')[0] + '.zip');
+  };
+
+  const handleExportData = (dataType) => {
+    const exportData = {
+      type: dataType,
+      timestamp: new Date().toISOString(),
+      data: `Sample ${dataType} data would be exported here...`
+    };
+
+    const content = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${dataType.toLowerCase().replace(/\s+/g, '_')}_export_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    alert(`${dataType} exported successfully!`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row gap-4 justify-between">
         <div>
-          <h2 className="text-3xl font-bold">Settings</h2>
-          <p className="text-muted-foreground">Manage system settings and configurations</p>
         </div>
         <div className="flex gap-2">
-          <Button>
-            <Save className="w-4 h-4 mr-2" />
-            Save Changes
+          <Button 
+            onClick={handleSaveChanges}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </Button>
-          <Button variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Export Settings
+          <Button 
+            variant="outline"
+            onClick={handleExportSettings}
+            disabled={isExporting}
+          >
+            {isExporting ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            {isExporting ? 'Exporting...' : 'Export Settings'}
           </Button>
         </div>
       </div>
@@ -144,7 +367,10 @@ const SettingsModule = () => {
                     onChange={(e) => setNewUser({...newUser, password: e.target.value})}
                   />
                 </div>
-                <Button className="w-full">
+                <Button 
+                  className="w-full"
+                  onClick={handleAddUser}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Add User
                 </Button>
@@ -184,10 +410,20 @@ const SettingsModule = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="outline">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleEditUser(user.id)}
+                              title="Edit User"
+                            >
                               <Edit className="w-3 h-3" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button 
+                              size="sm" 
+                              variant="destructive"
+                              onClick={() => handleDeleteUser(user.id)}
+                              title="Delete User"
+                            >
                               <Trash2 className="w-3 h-3" />
                             </Button>
                           </div>
@@ -293,7 +529,11 @@ const SettingsModule = () => {
                     <p className="text-sm text-muted-foreground mb-2">
                       Upload your pharmacy logo (PNG, JPG)
                     </p>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleUploadLogo}
+                    >
                       Choose File
                     </Button>
                   </div>
@@ -360,10 +600,20 @@ const SettingsModule = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handlePreviewTemplate}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
                       Preview Template
                     </Button>
-                    <Button variant="outline" className="flex-1">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleResetTemplate}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
                       Reset to Default
                     </Button>
                   </div>
@@ -459,11 +709,31 @@ const SettingsModule = () => {
                     />
                   </div>
                   <div className="flex gap-2 mt-4">
-                    <Button variant="outline" className="flex-1">
-                      Test Email
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleTestEmail}
+                      disabled={isTestingEmail}
+                    >
+                      {isTestingEmail ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Mail className="w-4 h-4 mr-2" />
+                      )}
+                      {isTestingEmail ? 'Testing...' : 'Test Email'}
                     </Button>
-                    <Button variant="outline" className="flex-1">
-                      Test SMS
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleTestSMS}
+                      disabled={isTestingSMS}
+                    >
+                      {isTestingSMS ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Mail className="w-4 h-4 mr-2" />
+                      )}
+                      {isTestingSMS ? 'Testing...' : 'Test SMS'}
                     </Button>
                   </div>
                 </div>
@@ -506,27 +776,51 @@ const SettingsModule = () => {
                       defaultValue="30"
                     />
                   </div>
-                  <Button className="w-full">
-                    <HardDrive className="w-4 h-4 mr-2" />
-                    Create Backup Now
+                  <Button 
+                    className="w-full"
+                    onClick={handleCreateBackup}
+                    disabled={isCreatingBackup}
+                  >
+                    {isCreatingBackup ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <HardDrive className="w-4 h-4 mr-2" />
+                    )}
+                    {isCreatingBackup ? 'Creating Backup...' : 'Create Backup Now'}
                   </Button>
                 </div>
                 <div className="space-y-4">
                   <h4 className="font-medium">Data Export</h4>
                   <div className="space-y-2">
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={() => handleExportData('All Sales Data')}
+                    >
                       <Download className="w-4 h-4 mr-2" />
                       Export All Sales Data
                     </Button>
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={() => handleExportData('Inventory Data')}
+                    >
                       <Download className="w-4 h-4 mr-2" />
                       Export Inventory Data
                     </Button>
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={() => handleExportData('Customer Data')}
+                    >
                       <Download className="w-4 h-4 mr-2" />
                       Export Customer Data
                     </Button>
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={() => handleExportData('Purchase Orders')}
+                    >
                       <Download className="w-4 h-4 mr-2" />
                       Export Purchase Orders
                     </Button>

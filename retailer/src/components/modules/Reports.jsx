@@ -6,7 +6,7 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
-import { FileText, Download, Filter, Calendar, TrendingUp, AlertTriangle, Package, Receipt } from "lucide-react";
+import { FileText, Download, Filter, Calendar, TrendingUp, AlertTriangle, Package, Receipt, Printer, RefreshCw } from "lucide-react";
 
 const Reports = () => {
   const [selectedReport, setSelectedReport] = useState("sales");
@@ -14,6 +14,9 @@ const Reports = () => {
     startDate: "2024-01-01",
     endDate: new Date().toISOString().split('T')[0],
   });
+  const [groupBy, setGroupBy] = useState("daily");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [reportGenerated, setReportGenerated] = useState(false);
 
   const reportTypes = [
     { id: "sales", name: "Sales Report", icon: TrendingUp, description: "Daily/Monthly sales analysis" },
@@ -40,6 +43,273 @@ const Reports = () => {
     { productCode: "MED001", name: "Paracetamol 500mg", qty: 850, minStock: 100, value: 32487.50, status: "In Stock" },
     { productCode: "MED002", name: "Amoxicillin 250mg", qty: 25, minStock: 50, value: 2667.00, status: "Low Stock" },
   ];
+
+  // Button functionality functions
+  const handleGenerateReport = async () => {
+    setIsGenerating(true);
+    
+    // Simulate report generation delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setReportGenerated(true);
+    setIsGenerating(false);
+    alert(`${reportTypes.find(r => r.id === selectedReport)?.name} generated successfully for ${dateRange.startDate} to ${dateRange.endDate}`);
+  };
+
+  const handleApplyFilters = () => {
+    if (new Date(dateRange.startDate) > new Date(dateRange.endDate)) {
+      alert('Start date cannot be after end date. Please correct the date range.');
+      return;
+    }
+    
+    setReportGenerated(false);
+    alert(`Filters applied: ${dateRange.startDate} to ${dateRange.endDate}, Grouped by: ${groupBy}`);
+  };
+
+  const handleExportPDF = () => {
+    if (!reportGenerated) {
+      alert('Please generate a report first before exporting.');
+      return;
+    }
+
+    const reportName = reportTypes.find(r => r.id === selectedReport)?.name || 'Report';
+    const fileName = `${reportName}_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
+    
+    // Create PDF content
+    const printContent = generatePrintContent();
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+    
+    alert(`PDF export initiated for ${fileName}`);
+  };
+
+  const handleExportExcel = () => {
+    if (!reportGenerated) {
+      alert('Please generate a report first before exporting.');
+      return;
+    }
+
+    const reportName = reportTypes.find(r => r.id === selectedReport)?.name || 'Report';
+    const fileName = `${reportName}_${dateRange.startDate}_to_${dateRange.endDate}.xlsx`;
+    
+    // Create CSV content (simplified Excel export)
+    const csvContent = generateCSVContent();
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName.replace('.xlsx', '.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    alert(`Excel export completed: ${fileName}`);
+  };
+
+  const handlePrintReport = () => {
+    if (!reportGenerated) {
+      alert('Please generate a report first before printing.');
+      return;
+    }
+
+    const printContent = generatePrintContent();
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  const generatePrintContent = () => {
+    const reportName = reportTypes.find(r => r.id === selectedReport)?.name || 'Report';
+    const currentData = getCurrentReportData();
+    
+    return `
+      <html>
+        <head>
+          <title>${reportName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            .info { margin: 10px 0; }
+            .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            .table th { background-color: #f2f2f2; }
+            .summary { margin-top: 20px; padding: 10px; background-color: #f9f9f9; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${reportName}</h1>
+            <h2>Pharmacy Management System</h2>
+          </div>
+          <div class="info">
+            <p><strong>Report Period:</strong> ${dateRange.startDate} to ${dateRange.endDate}</p>
+            <p><strong>Grouped By:</strong> ${groupBy}</p>
+            <p><strong>Generated On:</strong> ${new Date().toLocaleString()}</p>
+          </div>
+          ${currentData}
+          <div class="summary">
+            <p><strong>Report Summary:</strong> This report contains ${getDataCount()} records for the selected period.</p>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const generateCSVContent = () => {
+    const headers = getTableHeaders();
+    const rows = getTableData();
+    
+    let csv = headers.join(',') + '\n';
+    rows.forEach(row => {
+      csv += row.join(',') + '\n';
+    });
+    
+    return csv;
+  };
+
+  const getCurrentReportData = () => {
+    switch (selectedReport) {
+      case "sales":
+        return `
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Bill No</th>
+                <th>Customer</th>
+                <th>Amount</th>
+                <th>Tax</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${salesData.map(sale => `
+                <tr>
+                  <td>${sale.date}</td>
+                  <td>${sale.billNo}</td>
+                  <td>${sale.customer}</td>
+                  <td>₹${sale.amount.toFixed(2)}</td>
+                  <td>₹${sale.tax.toFixed(2)}</td>
+                  <td>₹${sale.total.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      case "expiry":
+      case "near-expiry":
+        return `
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Product Code</th>
+                <th>Name</th>
+                <th>Batch</th>
+                <th>Expiry Date</th>
+                <th>Qty</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${expiryData.map(item => `
+                <tr>
+                  <td>${item.productCode}</td>
+                  <td>${item.name}</td>
+                  <td>${item.batch}</td>
+                  <td>${item.expiry}</td>
+                  <td>${item.qty}</td>
+                  <td>${item.status}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      case "stock":
+        return `
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Product Code</th>
+                <th>Name</th>
+                <th>Current Qty</th>
+                <th>Min Stock</th>
+                <th>Value</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${stockData.map(item => `
+                <tr>
+                  <td>${item.productCode}</td>
+                  <td>${item.name}</td>
+                  <td>${item.qty}</td>
+                  <td>${item.minStock}</td>
+                  <td>₹${item.value.toFixed(2)}</td>
+                  <td>${item.status}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      default:
+        return '<p>No data available for this report type.</p>';
+    }
+  };
+
+  const getTableHeaders = () => {
+    switch (selectedReport) {
+      case "sales":
+        return ["Date", "Bill No", "Customer", "Amount", "Tax", "Total"];
+      case "expiry":
+      case "near-expiry":
+        return ["Product Code", "Name", "Batch", "Expiry Date", "Qty", "Status"];
+      case "stock":
+        return ["Product Code", "Name", "Current Qty", "Min Stock", "Value", "Status"];
+      default:
+        return [];
+    }
+  };
+
+  const getTableData = () => {
+    switch (selectedReport) {
+      case "sales":
+        return salesData.map(sale => [
+          sale.date, sale.billNo, sale.customer, 
+          sale.amount.toFixed(2), sale.tax.toFixed(2), sale.total.toFixed(2)
+        ]);
+      case "expiry":
+      case "near-expiry":
+        return expiryData.map(item => [
+          item.productCode, item.name, item.batch, 
+          item.expiry, item.qty.toString(), item.status
+        ]);
+      case "stock":
+        return stockData.map(item => [
+          item.productCode, item.name, item.qty.toString(), 
+          item.minStock.toString(), item.value.toFixed(2), item.status
+        ]);
+      default:
+        return [];
+    }
+  };
+
+  const getDataCount = () => {
+    switch (selectedReport) {
+      case "sales":
+        return salesData.length;
+      case "expiry":
+      case "near-expiry":
+        return expiryData.length;
+      case "stock":
+        return stockData.length;
+      default:
+        return 0;
+    }
+  };
 
   const renderReportContent = () => {
     switch (selectedReport) {
@@ -150,19 +420,32 @@ const Reports = () => {
       {/* Header */}
       <div className="flex flex-col lg:flex-row gap-4 justify-between">
         <div>
-          <h2 className="text-3xl font-bold">Reports & Analytics</h2>
-          <p className="text-muted-foreground">Generate comprehensive business reports</p>
         </div>
         <div className="flex gap-2">
-          <Button>
-            <FileText className="w-4 h-4 mr-2" />
-            Generate Report
+          <Button 
+            onClick={handleGenerateReport} 
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4 mr-2" />
+            )}
+            {isGenerating ? 'Generating...' : 'Generate Report'}
           </Button>
-          <Button variant="outline">
+          <Button 
+            variant="outline" 
+            onClick={handleExportPDF}
+            disabled={!reportGenerated}
+          >
             <Download className="w-4 h-4 mr-2" />
             Export PDF
           </Button>
-          <Button variant="outline">
+          <Button 
+            variant="outline" 
+            onClick={handleExportExcel}
+            disabled={!reportGenerated}
+          >
             <Download className="w-4 h-4 mr-2" />
             Export Excel
           </Button>
@@ -234,7 +517,7 @@ const Reports = () => {
             </div>
             <div>
               <Label htmlFor="groupBy">Group By</Label>
-              <Select defaultValue="daily">
+              <Select value={groupBy} onValueChange={setGroupBy}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -246,7 +529,7 @@ const Reports = () => {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button className="w-full">
+              <Button className="w-full" onClick={handleApplyFilters}>
                 <Calendar className="w-4 h-4 mr-2" />
                 Apply Filters
               </Button>
@@ -278,15 +561,27 @@ const Reports = () => {
               Report generated on {new Date().toLocaleDateString()}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
-                <FileText className="w-4 h-4 mr-2" />
+              <Button 
+                variant="outline" 
+                onClick={handlePrintReport}
+                disabled={!reportGenerated}
+              >
+                <Printer className="w-4 h-4 mr-2" />
                 Print Report
               </Button>
-              <Button variant="outline">
+              <Button 
+                variant="outline" 
+                onClick={handleExportPDF}
+                disabled={!reportGenerated}
+              >
                 <Download className="w-4 h-4 mr-2" />
                 Save as PDF
               </Button>
-              <Button variant="outline">
+              <Button 
+                variant="outline" 
+                onClick={handleExportExcel}
+                disabled={!reportGenerated}
+              >
                 <Download className="w-4 h-4 mr-2" />
                 Export to Excel
               </Button>

@@ -7,10 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
 import { Progress } from "../ui/progress";
-import { Upload, Shield, CheckCircle, AlertTriangle, FileText, Calendar } from "lucide-react";
+import { Upload, Shield, CheckCircle, AlertTriangle, FileText, Calendar, Download, Eye, RefreshCw, ExternalLink, Clock } from "lucide-react";
 
 const Compliance = () => {
-  const [dlValidation] = useState([
+  const [dlValidation, setDlValidation] = useState([
     {
       licenseNo: "DL-TS-2024-001",
       issueDate: "2024-01-01",
@@ -29,7 +29,7 @@ const Compliance = () => {
     },
   ]);
 
-  const [gstReports] = useState([
+  const [gstReports, setGstReports] = useState([
     {
       period: "January 2024",
       gstr1Status: "Filed",
@@ -48,7 +48,7 @@ const Compliance = () => {
     },
   ]);
 
-  const [tpassReports] = useState([
+  const [tpassReports, setTpassReports] = useState([
     {
       reportId: "TPASS-2024-001",
       period: "Q4 2023",
@@ -65,7 +65,181 @@ const Compliance = () => {
     },
   ]);
 
+  const [isUploading, setIsUploading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
   const complianceScore = 85; // Overall compliance percentage
+
+  // Button functionality functions
+  const handleUploadDocument = async () => {
+    setIsUploading(true);
+    
+    // Create file input element
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        // Simulate upload process
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        alert(`Document "${file.name}" uploaded successfully!`);
+      }
+      setIsUploading(false);
+    };
+    input.click();
+  };
+
+  const handleGenerateReport = async () => {
+    setIsGenerating(true);
+    
+    // Simulate report generation
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    setIsGenerating(false);
+    alert('Compliance report generated successfully!');
+  };
+
+  const handleValidateLicense = (licenseNo) => {
+    const license = dlValidation.find(l => l.licenseNo === licenseNo);
+    if (license) {
+      // Simulate validation process
+      const isValid = license.status === 'Valid';
+      const message = isValid 
+        ? `License ${licenseNo} is valid and active.`
+        : `License ${licenseNo} requires attention - ${license.status.toLowerCase()}.`;
+      
+      alert(`Validation Result:\n\n${message}\n\nAuthority: ${license.authority}\nExpiry: ${license.expiryDate}`);
+    }
+  };
+
+  const handleRenewLicense = (licenseNo) => {
+    if (window.confirm(`Are you sure you want to initiate renewal process for license ${licenseNo}?`)) {
+      // Simulate renewal process
+      alert(`Renewal process initiated for ${licenseNo}.\n\nYou will be redirected to the licensing authority portal.`);
+      
+      // Update license status
+      setDlValidation(prev => prev.map(license => 
+        license.licenseNo === licenseNo 
+          ? { ...license, status: 'Renewal In Progress' }
+          : license
+      ));
+    }
+  };
+
+  const handleViewGSTReport = (period) => {
+    const report = gstReports.find(r => r.period === period);
+    if (report) {
+      const reportDetails = `
+GST Report Details:
+
+Period: ${report.period}
+GSTR-1 Status: ${report.gstr1Status}
+GSTR-3B Status: ${report.gstr3bStatus}
+Filing Date: ${report.filingDate}
+Total Sales: ₹${report.totalSales.toLocaleString()}
+Total Tax: ₹${report.totalTax.toLocaleString()}
+
+${report.gstr3bStatus === 'Pending' ? '⚠️ GSTR-3B filing is pending. Please file before the due date.' : '✅ All GST returns filed successfully.'}
+      `;
+      alert(reportDetails);
+    }
+  };
+
+  const handleDownloadGSTReport = (period) => {
+    const report = gstReports.find(r => r.period === period);
+    if (report) {
+      // Create downloadable content
+      const content = `
+GST Report - ${period}
+=====================================
+
+GSTR-1 Status: ${report.gstr1Status}
+GSTR-3B Status: ${report.gstr3bStatus}
+Filing Date: ${report.filingDate}
+Total Sales: ₹${report.totalSales.toLocaleString()}
+Total Tax: ₹${report.totalTax.toLocaleString()}
+
+Generated on: ${new Date().toLocaleString()}
+      `;
+      
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `GST_Report_${period.replace(' ', '_')}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      alert(`GST report for ${period} downloaded successfully!`);
+    }
+  };
+
+  const handleSubmitTPASSReport = (reportId) => {
+    if (window.confirm(`Are you sure you want to submit T-PASS report ${reportId}?`)) {
+      // Simulate submission process
+      setTpassReports(prev => prev.map(report => 
+        report.reportId === reportId 
+          ? { 
+              ...report, 
+              status: 'Submitted', 
+              submissionDate: new Date().toISOString().split('T')[0] 
+            }
+          : report
+      ));
+      
+      alert(`T-PASS report ${reportId} submitted successfully!\n\nSubmission Date: ${new Date().toLocaleDateString()}`);
+    }
+  };
+
+  const handleViewTPASSReport = (reportId) => {
+    const report = tpassReports.find(r => r.reportId === reportId);
+    if (report) {
+      const reportDetails = `
+T-PASS Report Details:
+
+Report ID: ${report.reportId}
+Period: ${report.period}
+Report Type: ${report.reportType}
+Status: ${report.status}
+${report.submissionDate ? `Submission Date: ${report.submissionDate}` : 'Not yet submitted'}
+
+${report.status === 'Due' ? '⚠️ This report is due for submission.' : '✅ Report submitted successfully.'}
+      `;
+      alert(reportDetails);
+    }
+  };
+
+  const handleDownloadTPASSReport = (reportId) => {
+    const report = tpassReports.find(r => r.reportId === reportId);
+    if (report) {
+      const content = `
+T-PASS Report - ${reportId}
+============================
+
+Period: ${report.period}
+Report Type: ${report.reportType}
+Status: ${report.status}
+Submission Date: ${report.submissionDate || 'Not submitted'}
+
+Generated on: ${new Date().toLocaleString()}
+      `;
+      
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `TPASS_Report_${reportId}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      alert(`T-PASS report ${reportId} downloaded successfully!`);
+    }
+  };
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -90,17 +264,30 @@ const Compliance = () => {
       {/* Header */}
       <div className="flex flex-col lg:flex-row gap-4 justify-between">
         <div>
-          <h2 className="text-3xl font-bold">Compliance Management</h2>
-          <p className="text-muted-foreground">Track regulatory compliance and submissions</p>
         </div>
         <div className="flex gap-2">
-          <Button>
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Document
+          <Button 
+            onClick={handleUploadDocument}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4 mr-2" />
+            )}
+            {isUploading ? 'Uploading...' : 'Upload Document'}
           </Button>
-          <Button variant="outline">
-            <FileText className="w-4 h-4 mr-2" />
-            Generate Report
+          <Button 
+            variant="outline"
+            onClick={handleGenerateReport}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4 mr-2" />
+            )}
+            {isGenerating ? 'Generating...' : 'Generate Report'}
           </Button>
         </div>
       </div>
@@ -185,10 +372,22 @@ const Compliance = () => {
                       <TableCell>{getStatusBadge(license.status)}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleValidateLicense(license.licenseNo)}
+                            title="Validate License"
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
                             Validate
                           </Button>
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleRenewLicense(license.licenseNo)}
+                            title="Renew License"
+                          >
+                            <RefreshCw className="w-3 h-3 mr-1" />
                             Renew
                           </Button>
                         </div>
@@ -232,10 +431,22 @@ const Compliance = () => {
                       <TableCell>₹{report.totalTax.toLocaleString()}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleViewGSTReport(report.period)}
+                            title="View GST Report Details"
+                          >
+                            <Eye className="w-3 h-3 mr-1" />
                             View
                           </Button>
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleDownloadGSTReport(report.period)}
+                            title="Download GST Report"
+                          >
+                            <Download className="w-3 h-3 mr-1" />
                             Download
                           </Button>
                         </div>
@@ -315,11 +526,35 @@ const Compliance = () => {
                       <TableCell>{getStatusBadge(report.status)}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
-                            {report.status === "Due" ? "Submit" : "View"}
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => report.status === "Due" 
+                              ? handleSubmitTPASSReport(report.reportId)
+                              : handleViewTPASSReport(report.reportId)
+                            }
+                            title={report.status === "Due" ? "Submit T-PASS Report" : "View T-PASS Report"}
+                          >
+                            {report.status === "Due" ? (
+                              <>
+                                <Upload className="w-3 h-3 mr-1" />
+                                Submit
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3 h-3 mr-1" />
+                                View
+                              </>
+                            )}
                           </Button>
                           {report.status === "Submitted" && (
-                            <Button size="sm" variant="outline">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleDownloadTPASSReport(report.reportId)}
+                              title="Download T-PASS Report"
+                            >
+                              <Download className="w-3 h-3 mr-1" />
                               Download
                             </Button>
                           )}

@@ -97,7 +97,7 @@ const Dashboard = () => {
       icon: Package,
       variant: 'success',
       description: 'Update inventory',
-      onClick: () => navigate('/inventory', { state: { openAddStock: true } })
+      onClick: () => navigate('/inventory', { state: { showBulkAddStock: true } })
     }
     ,
     { title: 'Search Party', icon: Search, variant: 'outline', description: 'Find customer', onClick: () => navigate('/parties?search=') },

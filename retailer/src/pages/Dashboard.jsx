@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { 
@@ -17,7 +17,9 @@ import {
   AlertTriangle,
   TrendingUp,
   Users,
-  Calendar
+  Calendar,
+  LogOut,
+  User
 } from "lucide-react";
 
 // Import module components
@@ -32,6 +34,22 @@ import SettingsModule from "../components/modules/Settings";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    try {
+      // Clear any stored session/auth data
+      sessionStorage.clear();
+      localStorage.clear();
+    } catch (_) {
+      // no-op
+    }
+    navigate("/login");
+  };
+
+  const handleProfile = () => {
+    setActiveTab("settings");
+  };
 
   const quickStats = [
     { title: "Today's Sales", value: "₹45,680", change: "+12%", icon: TrendingUp, color: "text-success" },
@@ -48,7 +66,7 @@ const Dashboard = () => {
     { label: "Due Payments", icon: CreditCard, action: () => setActiveTab("payments") },
   ];
 
-  const tabs = [
+  const navigationItems = [
     { id: "overview", label: "Overview", icon: Calendar },
     { id: "purchase-orders", label: "Purchase Orders", icon: ShoppingCart },
     { id: "inventory", label: "Inventory", icon: Package },
@@ -60,40 +78,11 @@ const Dashboard = () => {
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case "overview":
   return (
-    <div className="min-h-screen bg-gradient-card">
-      <div className="container mx-auto p-6">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-                PharmaRetail Dashboard
-              </h1>
-              <p className="text-muted-foreground">Complete pharmacy management at your fingertips</p>
-            </div>
-            <Badge variant="secondary" className="px-4 py-2">
-              Demo Mode
-            </Badge>
-          </div>
-        </div>
-
-        {/* Main Navigation Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-9 mb-6">
-            {tabs.map((tab) => {
-              const IconComponent = tab.icon;
-              return (
-                <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
-                  <IconComponent className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
+          <div className="space-y-6">
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {quickStats.map((stat, index) => {
@@ -141,41 +130,114 @@ const Dashboard = () => {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
+        );
+      case "purchase-orders":
+        return <PurchaseOrders />;
+      case "inventory":
+        return <Inventory />;
+      case "sales":
+        return <Sales />;
+      case "payments":
+        return <Payments />;
+      case "returns":
+        return <Returns />;
+      case "reports":
+        return <Reports />;
+      case "compliance":
+        return <Compliance />;
+      case "settings":
+        return <SettingsModule />;
+      default:
+        return null;
+    }
+  };
 
-          {/* Module Tabs */}
-          <TabsContent value="purchase-orders">
-            <PurchaseOrders />
-          </TabsContent>
+  return (
+    <div className="min-h-screen bg-gradient-card flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-white shadow-lg border-r border-gray-200 flex flex-col">
+        {/* Sidebar Header */}
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <Package className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-gray-900">PharmaRetail</p>
+              <p className="text-sm text-gray-500">Management System</p>
+            </div>
+          </div>
+        </div>
 
-          <TabsContent value="inventory">
-            <Inventory />
-          </TabsContent>
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-2">
+          {navigationItems.map((item) => {
+            const IconComponent = item.icon;
+            return (
+              <Button
+                key={item.id}
+                variant={activeTab === item.id ? "default" : "ghost"}
+                className="w-full justify-start gap-3 h-12"
+                onClick={() => setActiveTab(item.id)}
+              >
+                <IconComponent className="h-5 w-5" />
+                <span className="text-sm">{item.label}</span>
+              </Button>
+            );
+          })}
+        </nav>
 
-          <TabsContent value="sales">
-            <Sales />
-          </TabsContent>
+        {/* User Section */}
+        <div className="p-4 border-t border-gray-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+              <User className="h-4 w-4 text-gray-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">Admin User</p>
+              <p className="text-xs text-gray-500">admin@pharmaretail.com</p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
+        </div>
+      </div>
 
-          <TabsContent value="payments">
-            <Payments />
-          </TabsContent>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Top Header - For all pages except Settings */}
+        {activeTab !== "settings" && (
+          <div className="bg-white border-b border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {navigationItems.find(item => item.id === activeTab)?.label || "Dashboard"}
+                </h1>
+                <p className="text-sm text-gray-500">
+                  Manage your pharmacy operations efficiently
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" size="sm" className="gap-2" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </Button>
+                <Button variant="outline" size="sm" className="gap-2" onClick={handleProfile}>
+                  <User className="h-4 w-4" />
+                  Profile
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
-          <TabsContent value="returns">
-            <Returns />
-          </TabsContent>
-
-          <TabsContent value="reports">
-            <Reports />
-          </TabsContent>
-
-          <TabsContent value="compliance">
-            <Compliance />
-          </TabsContent>
-
-          <TabsContent value="settings">
-            <SettingsModule />
-          </TabsContent>
-        </Tabs>
+        {/* Content Area */}
+        <div className="flex-1 p-6 overflow-auto">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );

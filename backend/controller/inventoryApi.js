@@ -1,4 +1,3 @@
-// controllers/inventoryController.js
 import { Op, fn, col, literal } from 'sequelize';
 import Product from '../../database/models/Product.js';
 import StockItem from '../../database/models/StockItem.js';
@@ -57,15 +56,14 @@ export const getInventorySummary = async (req, res) => {
     });
 
     // ✅ Fixed total value
-   const result = await StockItem.findAll({
-  attributes: [[fn("SUM", literal("ptr * current_stock")), "total_value"]],
-  include: [{ model: Product, as: "Product", attributes: [] }],
-  where: { ...where, is_expired: false },
-  raw: true,
-});
+    const result = await StockItem.findAll({
+      attributes: [[fn("SUM", literal("ptr * current_stock")), "total_value"]],
+      include: [{ model: Product, as: "Product", attributes: [] }],
+      where: { ...where, is_expired: false },
+      raw: true,
+    });
 
-const totalValue = result[0]?.total_value || 0;
-
+    const totalValue = result[0]?.total_value || 0;
 
     res.json({
       total_products: totalProducts,
@@ -117,8 +115,8 @@ export const getStockItems = async (req, res) => {
         model: Product,
         as: 'Product',
         attributes: [
-          'product_id', 'product_code', 'generic_name', 'unit_size',
-          'mrp', 'group_name', 'hsn_code', 'category'
+          'product_code', 'generic_name', 'unit_size',
+          'mrp', 'hsn_code', 'category'
         ]
       }],
       where: whereConditions,
@@ -126,7 +124,7 @@ export const getStockItems = async (req, res) => {
       offset: parseInt(offset),
       order: [[sortBy, order]],
       attributes: [
-        'stock_id', 'distributor_id', 'product_id', 'batch_number', 'manufacturing_date',
+        'stock_id', 'distributor_id', 'product_code', 'batch_number', 'manufacturing_date',
         'expiry_date', 'quantity', 'minimum_stock', 'ptr', 'pts',
         'tax_rate', 'current_stock', 'is_expired', 'is_critical', 'status'
       ]
@@ -143,23 +141,23 @@ export const getStockItems = async (req, res) => {
       }
     }));
 
-// 2. Get all categories from distributor's stock (ignoring pagination)
-const categoriesResult = await Product.findAll({
-  include: [{ 
-    model: StockItem,
-    where: { distributor_id: distributorId }
-  }],
-  attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
-  raw: true
-});
+    // 2. Get all categories from distributor's stock
+    const categoriesResult = await Product.findAll({
+      include: [{ 
+        model: StockItem,
+        where: { distributor_id: distributorId }
+      }],
+      attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
+      raw: true
+    });
 
-const categories = [...new Set(categoriesResult.map(c => c.category).filter(Boolean))];
+    const categories = [...new Set(categoriesResult.map(c => c.category).filter(Boolean))];
 
-res.json({
-  total: count,
-  data: formattedStockItems,
-  categories: categories // just use categories directly
-});
+    res.json({
+      total: count,
+      data: formattedStockItems,
+      categories: categories
+    });
 
   } catch (error) {
     console.error('Error fetching stock items:', error);
@@ -168,7 +166,7 @@ res.json({
 };
 
 // ------------------------------
-// ADD BULK STOCK (Updated with decimal tax handling)
+// ADD BULK STOCK
 // ------------------------------
 export const addBulkStock = async (req, res) => {
   try {
@@ -179,43 +177,28 @@ export const addBulkStock = async (req, res) => {
       return res.status(400).json({ message: 'No stock items provided' });
     }
 
-    const results = {
-      success: [],
-      errors: []
-    };
+    const results = { success: [], errors: [] };
 
     for (const item of stockItems) {
       try {
-        // Skip empty rows (where product_id is empty)
-        if (!item.product_id || item.product_id.trim() === '') {
+        if (!item.product_code || item.product_code.trim() === '') {
           continue;
         }
 
-        // Check for required fields
-        const { product_id, batch_number, expiry_date, quantity, ptr, pts } = item;
+        const { product_code, batch_number, expiry_date, quantity, ptr, pts } = item;
         
         if (!batch_number || !expiry_date || !quantity || !ptr || !pts) {
-          results.errors.push({
-            item,
-            error: 'Missing required fields (batch number, expiry date, quantity, PTR, or PTS)'
-          });
+          results.errors.push({ item, error: 'Missing required fields' });
           continue;
         }
 
-        const product = await Product.findOne({
-          where: { product_code: product_id }
-        });
-
+        const product = await Product.findOne({ where: { product_code } });
         if (!product) {
-          results.errors.push({
-            item,
-            error: 'Product not found'
-          });
+          results.errors.push({ item, error: 'Product not found' });
           continue;
         }
 
-        // Parse tax rate with decimal support
-        let taxRate = 12; // default
+        let taxRate = 12;
         if (item.tax_rate) {
           taxRate = parseFloat(item.tax_rate);
           if (isNaN(taxRate)) taxRate = 12;
@@ -223,7 +206,7 @@ export const addBulkStock = async (req, res) => {
 
         const newStockItem = await StockItem.create({
           distributor_id: distributorId,
-          product_id: product.product_id,
+          product_code,
           batch_number,
           manufacturing_date: item.manufacturing_date ? new Date(item.manufacturing_date) : null,
           expiry_date: new Date(expiry_date),
@@ -240,10 +223,7 @@ export const addBulkStock = async (req, res) => {
         results.success.push(newStockItem);
       } catch (error) {
         console.error('Error adding stock item:', error);
-        results.errors.push({
-          item,
-          error: error.message
-        });
+        results.errors.push({ item, error: error.message });
       }
     }
 
@@ -257,6 +237,7 @@ export const addBulkStock = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 // ------------------------------
 // UPDATE STOCK
 // ------------------------------
@@ -264,42 +245,36 @@ export const updateStock = async (req, res) => {
   try {
     const distributorId = req.user.id;
     const { stockId } = req.params;
-    const {
-      product_id,
-      quantity,
-      minimum_stock,
-      ptr,
-      pts,
-      tax_rate,
-      manufacturing_date,
-      expiry_date
-    } = req.body;
+    const { product_code, batch_number, quantity, minimum_stock, ptr, pts, tax_rate, manufacturing_date, expiry_date, mrp } = req.body;
 
     const stockItem = await StockItem.findOne({
       where: { stock_id: stockId, distributor_id: distributorId }
     });
     if (!stockItem) return res.status(404).json({ message: 'Stock item not found' });
 
-    if (product_id !== undefined) {
-      const product = await Product.findOne({ where: { product_code: product_id } });
+    if (product_code !== undefined) {
+      const product = await Product.findOne({ where: { product_code } });
       if (!product) return res.status(404).json({ message: 'Product not found' });
-      stockItem.product_id = product.product_id;
+      stockItem.product_code = product_code;
     }
 
+    // Parse as floats instead of integers for decimal support
     await stockItem.update({
-      quantity: quantity !== undefined ? parseInt(quantity) : stockItem.quantity,
-      minimum_stock: minimum_stock !== undefined ? parseInt(minimum_stock) : stockItem.minimum_stock,
+      batch_number: batch_number !== undefined ? batch_number : stockItem.batch_number,
+      quantity: quantity !== undefined ? parseFloat(quantity) : stockItem.quantity,
+      minimum_stock: minimum_stock !== undefined ? parseFloat(minimum_stock) : stockItem.minimum_stock,
+      mrp: mrp !== undefined ? parseFloat(mrp) : stockItem.mrp, // Added MRP handling
       ptr: ptr !== undefined ? parseFloat(ptr) : stockItem.ptr,
       pts: pts !== undefined ? parseFloat(pts) : stockItem.pts,
       tax_rate: tax_rate !== undefined ? parseFloat(tax_rate) : stockItem.tax_rate,
       manufacturing_date: manufacturing_date ? new Date(manufacturing_date) : stockItem.manufacturing_date,
       expiry_date: expiry_date ? new Date(expiry_date) : stockItem.expiry_date,
-      current_stock: quantity !== undefined ? parseInt(quantity) : stockItem.current_stock,
+      current_stock: quantity !== undefined ? parseFloat(quantity) : stockItem.current_stock,
       is_expired: expiry_date ? new Date(expiry_date) < new Date() : stockItem.is_expired,
       status: quantity !== undefined || minimum_stock !== undefined
         ? getStockStatus(
-            quantity !== undefined ? parseInt(quantity) : stockItem.current_stock,
-            minimum_stock !== undefined ? parseInt(minimum_stock) : stockItem.minimum_stock
+            quantity !== undefined ? parseFloat(quantity) : stockItem.current_stock,
+            minimum_stock !== undefined ? parseFloat(minimum_stock) : stockItem.minimum_stock
           )
         : stockItem.status
     });
@@ -338,12 +313,12 @@ export const deleteStock = async (req, res) => {
 // ------------------------------
 export const getStockDetails = async (req, res) => {
   try {
-    const { productId } = req.params;
+    const { productCode } = req.params;
     const distributorId = req.user.id;
 
     const stockItems = await StockItem.findAll({
       include: [{ model: Product, as: 'Product' }],
-      where: { product_id: productId, distributor_id: distributorId },
+      where: { product_code: productCode, distributor_id: distributorId },
       order: [['manufacturing_date', 'ASC']]
     });
 
@@ -376,12 +351,10 @@ export const importProducts = async (req, res) => {
         
         if (!product) {
           product = await Product.create({
-            product_id: productData.product_id,
             product_code: productData.product_code,
             generic_name: productData.generic_name,
             unit_size: productData.unit_size,
             mrp: parseFloat(productData.mrp) || 0,
-            group_name: productData.group_name,
             hsn_code: productData.hsn_code,
             category: productData.category,
             is_active: productData.is_active ?? true
@@ -390,7 +363,7 @@ export const importProducts = async (req, res) => {
 
         const stockItem = await StockItem.create({
           distributor_id: distributorId,
-          product_id: product.product_id,
+          product_code: product.product_code,
           batch_number: productData.batch_number,
           manufacturing_date: new Date(productData.manufacturing_date),
           expiry_date: new Date(productData.expiry_date),
@@ -426,13 +399,13 @@ export const exportProducts = async (req, res) => {
     const distributorId = req.user.id;
 
     const stockItems = await StockItem.findAll({
-      include: [{ model: Product, as: 'Product', attributes: ['product_id','product_code','generic_name','unit_size','mrp','group_name','hsn_code','category'] }],
+      include: [{ model: Product, as: 'Product', attributes: ['product_code','generic_name','unit_size','mrp','hsn_code','category'] }],
       where: { distributor_id: distributorId },
-      attributes: ['stock_id','product_id','batch_number','manufacturing_date','expiry_date','quantity','minimum_stock','ptr','pts','tax_rate','current_stock','is_expired','is_critical','status']
+      attributes: ['stock_id','product_code','batch_number','manufacturing_date','expiry_date','quantity','minimum_stock','ptr','pts','tax_rate','current_stock','is_expired','is_critical','status']
     });
 
     const exportData = stockItems.map(item => ({
-      'Product ID': item.product_id,
+      'Product Code': item.product_code,
       'Product Name': item.Product?.generic_name || '',
       'Batch Number': item.batch_number,
       'Manufacturing Date': item.manufacturing_date ? new Date(item.manufacturing_date).toISOString().split('T')[0] : '',
@@ -490,5 +463,39 @@ export const getProducts = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to fetch products' });
+  }
+};
+
+// ------------------------------
+// GET PRODUCT BATCHES
+// ------------------------------
+export const getProductBatches = async (req, res) => {
+  try {
+    const { product_code } = req.params;
+    const distributorId = req.user.id;
+
+    const batches = await StockItem.findAll({
+      where: { product_code, distributor_id: distributorId },
+      attributes: [
+        'stock_id',
+        'batch_number',
+        'manufacturing_date',
+        'expiry_date',
+        'quantity',
+        'ptr',
+        'pts',
+        'tax_rate'
+      ],
+      order: [['expiry_date', 'ASC']]
+    });
+
+    if (!batches.length) {
+      return res.status(404).json({ message: 'No batches found for this product' });
+    }
+
+    res.json(batches);
+  } catch (error) {
+    console.error('Error fetching product batches:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

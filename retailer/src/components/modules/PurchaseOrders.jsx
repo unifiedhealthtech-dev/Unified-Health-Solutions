@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { toast } from "sonner";
-import { Plus, Search, Edit, Trash2, FileText, Download, AlertTriangle, ShoppingCart, Save, X, Gift, Package } from "lucide-react";
+import { Plus, Search, Edit, Trash2, FileText, Download, AlertTriangle, ShoppingCart, Save, X, Gift, Package, RefreshCw, CheckCircle, Eye, Printer } from "lucide-react";
 
 const PurchaseOrders = () => {
   // Form states
@@ -21,6 +21,9 @@ const PurchaseOrders = () => {
   const [showDCDialog, setShowDCDialog] = useState(false);
   const [showSchemeDialog, setShowSchemeDialog] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Shortage items from inventory
   const [shortageItems] = useState([
@@ -188,24 +191,221 @@ const PurchaseOrders = () => {
     toast.success("D/C item removed");
   };
 
-  const handleSubmitOrder = () => {
+  const handleSubmitOrder = async () => {
     if (orderItems.length === 0) {
       toast.error("Please add items to the order");
       return;
     }
-    toast.success("Order submitted successfully");
+
+    if (!selectedDistributor) {
+      toast.error("Please select a distributor");
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    // Simulate order submission
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const orderData = {
+      invoiceNo: invoiceNo || `PO-${Date.now()}`,
+      distributor: selectedDistributor,
+      orderBy,
+      items: orderItems,
+      totalValue: orderItems.reduce((sum, item) => sum + item.netValue, 0),
+      submittedAt: new Date().toISOString()
+    };
+
+    setIsSubmitting(false);
+    toast.success(`Order submitted successfully! Order ID: ${orderData.invoiceNo}`);
+    
+    // Reset form
+    setOrderItems([]);
+    setInvoiceNo("");
+    setSelectedDistributor("");
   };
 
-  const handlePrintOrder = () => {
-    toast.info("Printing order...");
+  const handlePrintOrder = async () => {
+    if (orderItems.length === 0) {
+      toast.error("No items to print");
+      return;
+    }
+
+    setIsPrinting(true);
+    
+    // Simulate print process
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const printContent = generatePrintContent();
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+    
+    setIsPrinting(false);
+    toast.success("Order printed successfully!");
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      toast.error("Please enter a search term");
+      return;
+    }
+
+    setIsSearching(true);
+    
+    // Simulate search process
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    setIsSearching(false);
+    toast.success(`Found ${filteredProducts.length} products matching "${searchQuery}"`);
+  };
+
+  const generatePrintContent = () => {
+    const totalValue = orderItems.reduce((sum, item) => sum + item.netValue, 0);
+    const totalItems = orderItems.reduce((sum, item) => sum + item.qty, 0);
+    
+    return `
+      <html>
+        <head>
+          <title>Purchase Order - ${invoiceNo || 'Draft'}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            .info { margin: 10px 0; }
+            .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            .table th { background-color: #f2f2f2; }
+            .total { text-align: right; font-weight: bold; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>PURCHASE ORDER</h1>
+            <h2>Invoice No: ${invoiceNo || 'Draft'}</h2>
+          </div>
+          <div class="info">
+            <p><strong>Distributor:</strong> ${selectedDistributor || 'Not Selected'}</p>
+            <p><strong>Order By:</strong> ${orderBy}</p>
+            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Product Code</th>
+                <th>Name</th>
+                <th>Batch</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>MRP</th>
+                <th>Tax %</th>
+                <th>Scheme</th>
+                <th>Net Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${orderItems.map(item => `
+                <tr>
+                  <td>${item.productCode}</td>
+                  <td>${item.name}</td>
+                  <td>${item.batch}</td>
+                  <td>${item.qty}</td>
+                  <td>₹${item.rate.toFixed(2)}</td>
+                  <td>₹${item.mrp.toFixed(2)}</td>
+                  <td>${item.tax}%</td>
+                  <td>${item.scheme.free > 0 ? `${item.scheme.free} Free` : 'None'}</td>
+                  <td>₹${item.netValue.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="total">
+            <p>Total Items: ${totalItems}</p>
+            <p>Total Value: ₹${totalValue.toFixed(2)}</p>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const handleExportOrder = () => {
+    if (orderItems.length === 0) {
+      toast.error("No items to export");
+      return;
+    }
+
+    const orderData = {
+      invoiceNo: invoiceNo || 'Draft',
+      distributor: selectedDistributor,
+      orderBy,
+      items: orderItems,
+      totalValue: orderItems.reduce((sum, item) => sum + item.netValue, 0),
+      exportedAt: new Date().toISOString()
+    };
+
+    const content = JSON.stringify(orderData, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `purchase_order_${invoiceNo || 'draft'}_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    toast.success("Order exported successfully!");
+  };
+
+  const handleClearOrder = () => {
+    if (orderItems.length === 0) {
+      toast.info("Order is already empty");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to clear all items from the order?")) {
+      setOrderItems([]);
+      toast.success("Order cleared successfully");
+    }
+  };
+
+  const handleViewOrderSummary = () => {
+    if (orderItems.length === 0) {
+      toast.error("No items in order to view");
+      return;
+    }
+
+    const totalValue = orderItems.reduce((sum, item) => sum + item.netValue, 0);
+    const totalItems = orderItems.reduce((sum, item) => sum + item.qty, 0);
+    const totalFreeItems = orderItems.reduce((sum, item) => sum + item.scheme.free, 0);
+
+    const summary = `
+Order Summary:
+==============
+
+Invoice No: ${invoiceNo || 'Draft'}
+Distributor: ${selectedDistributor || 'Not Selected'}
+Order By: ${orderBy}
+
+Items Summary:
+- Total Products: ${orderItems.length}
+- Total Quantity: ${totalItems}
+- Free Items: ${totalFreeItems}
+- Total Value: ₹${totalValue.toLocaleString()}
+
+Items:
+${orderItems.map((item, index) => 
+  `${index + 1}. ${item.name} (${item.productCode}) - Qty: ${item.qty}${item.scheme.free > 0 ? ` + ${item.scheme.free} free` : ''} - ₹${item.netValue}`
+).join('\n')}
+    `;
+
+    alert(summary);
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold">Purchase Orders</h2>
-        <p className="text-muted-foreground">Manage your purchase orders and inventory</p>
       </div>
 
       {/* Main Form */}
@@ -303,8 +503,16 @@ const PurchaseOrders = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button variant="outline">
+            <Button 
+              variant="outline"
+              onClick={handleSearch}
+              disabled={isSearching}
+            >
+              {isSearching ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
               <Search className="w-4 h-4" />
+              )}
             </Button>
           </div>
 
@@ -474,13 +682,31 @@ const PurchaseOrders = () => {
                       </TableCell>
                       <TableCell>₹{item.netValue}</TableCell>
                       <TableCell>
+                        <div className="flex gap-1">
                         <Button 
                           size="sm" 
                           variant="outline"
+                            onClick={() => {
+                              const item = orderItems[index];
+                              const newQty = prompt(`Enter new quantity for ${item.name}:`, item.qty);
+                              if (newQty && !isNaN(newQty) && parseInt(newQty) > 0) {
+                                updateOrderItem(index, 'qty', parseInt(newQty));
+                                toast.success(`Quantity updated to ${newQty}`);
+                              }
+                            }}
+                            title="Edit Quantity"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
                           onClick={() => handleDeleteItem(index)}
+                            title="Remove Item"
                         >
                           <Trash2 className="w-3 h-3" />
                         </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -493,21 +719,50 @@ const PurchaseOrders = () => {
                 <div className="flex gap-2">
                   <Button 
                     variant="outline"
-                    onClick={() => {
-                      setOrderItems([]);
-                      toast.info("Order cancelled");
-                    }}
+                    onClick={handleViewOrderSummary}
+                    title="View Order Summary"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Summary
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={handleClearOrder}
+                    title="Clear All Items"
                   >
                     <X className="w-4 h-4 mr-2" />
-                    Cancel
+                    Clear
                   </Button>
-                  <Button onClick={handleSubmitOrder}>
+                  <Button 
+                    variant="outline"
+                    onClick={handleExportOrder}
+                    title="Export Order Data"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
+                  </Button>
+                  <Button 
+                    onClick={handleSubmitOrder}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
                     <ShoppingCart className="w-4 h-4 mr-2" />
-                    Submit Order
+                    )}
+                    {isSubmitting ? 'Submitting...' : 'Submit Order'}
                   </Button>
-                  <Button variant="outline" onClick={handlePrintOrder}>
-                    <FileText className="w-4 h-4 mr-2" />
-                    Print
+                  <Button 
+                    variant="outline" 
+                    onClick={handlePrintOrder}
+                    disabled={isPrinting}
+                  >
+                    {isPrinting ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Printer className="w-4 h-4 mr-2" />
+                    )}
+                    {isPrinting ? 'Printing...' : 'Print'}
                   </Button>
                 </div>
               </div>
@@ -599,13 +854,33 @@ const PurchaseOrders = () => {
                         <Badge variant="secondary">{item.status}</Badge>
                       </TableCell>
                       <TableCell>
+                        <div className="flex gap-1">
                         <Button 
                           size="sm" 
                           variant="outline"
+                            onClick={() => {
+                              const item = dcItems[index];
+                              const newStatus = prompt(`Update status for ${item.name}:`, item.status);
+                              if (newStatus) {
+                                setDcItems(prev => prev.map((dcItem, i) => 
+                                  i === index ? { ...dcItem, status: newStatus } : dcItem
+                                ));
+                                toast.success(`Status updated to "${newStatus}"`);
+                              }
+                            }}
+                            title="Update Status"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
                           onClick={() => handleDeleteDCItem(index)}
+                            title="Remove D/C Item"
                         >
                           <Trash2 className="w-3 h-3" />
                         </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
