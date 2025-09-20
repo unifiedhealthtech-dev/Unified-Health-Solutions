@@ -1,3 +1,4 @@
+// src/layouts/AppLayout.jsx
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -45,7 +46,9 @@ const AppLayout = ({ children }) => {
               <SidebarTrigger />
               <div>
                 <h2 className="text-lg font-semibold">Distributor Dashboard</h2>
-                <p className="text-sm text-muted-foreground">{distributor?.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {distributor?.name} ({user?.distributor_id})
+                </p>
               </div>
             </div>
 
@@ -88,13 +91,22 @@ const AppLayout = ({ children }) => {
                 </button>
                 <div className="flex flex-col items-center mb-6">
                   <div className="flex items-center justify-center w-20 h-20 text-2xl font-bold text-white rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500">
-                    {user?.username?.charAt(0)?.toUpperCase()}
+                    { distributor?.contact_person?.[0].toUpperCase() || 'R'}
                   </div>
                   <h3 className="mt-3 text-xl font-semibold text-gray-800">Profile Details</h3>
                   <p className="text-sm text-gray-500">{distributor?.name}</p>
+                  <p className="text-sm text-gray-400">DISTRIBUTOR ID {user?.distributor_id}</p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 text-sm text-gray-700">
+                  {user && (
+                    <>
+                      <div className="flex justify-between py-1 border-b">
+                        <span className="font-medium">DISTRIBUTOR ID:</span>
+                        <span>{user.distributor_id}</span>
+                      </div>
+                    </>
+                  )}
                   {distributor && (
                     <>
                       <div className="flex justify-between py-1 border-b">
@@ -104,6 +116,10 @@ const AppLayout = ({ children }) => {
                       <div className="flex justify-between py-1 border-b">
                         <span className="font-medium">Email:</span>
                         <span>{distributor.email}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b">
+                        <span className="font-medium">Contact Person:</span>
+                        <span>{distributor.contact_person}</span>
                       </div>
                       <div className="flex justify-between py-1 border-b">
                         <span className="font-medium">Phone:</span>
@@ -119,18 +135,7 @@ const AppLayout = ({ children }) => {
                       </div>
                     </>
                   )}
-                  {user && (
-                    <>
-                      <div className="flex justify-between py-1 border-b">
-                        <span className="font-medium">Username:</span>
-                        <span>{user.username}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b">
-                        <span className="font-medium">Email:</span>
-                        <span>{user.email}</span>
-                      </div>
-                    </>
-                  )}
+                  
                 </div>
 
                 <div className="flex justify-end mt-6">

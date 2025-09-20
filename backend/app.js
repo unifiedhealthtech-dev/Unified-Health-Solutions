@@ -2,8 +2,12 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import sequelize from '../database/db.js'; // Adjust path if needed
-import loginRouter from './router/loginRouter.js'; 
-import inventoryRouter from './router/inventoryRouter.js';
+import distributorLoginRouter from './distributor/router/distributorLoginRouter.js'; 
+import distributorInventoryRouter from './distributor/router/distributorInventoryRouter.js';
+import retailerLoginRouter from './retailer/router/retailerLoginRouter.js';
+import distributorConnectionsRouter from './distributor/router/distributorConnectionRouter.js';
+import retailerConnectionsRouter from './retailer/router/retailerConnectionRouter.js';
+import distributorPartyRouter from './distributor/router/distributorPartyRouter.js';
 import cookieParser from 'cookie-parser';
 dotenv.config();
 import cors from 'cors';
@@ -46,9 +50,17 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-app.use("/api", loginRouter);
-app.use("/api/inventory", inventoryRouter);
+// distributor routes
+app.use("/api/distributor", distributorLoginRouter);
+app.use("/api/distributor/inventory", distributorInventoryRouter);
+app.use("/api/distributor/connections", distributorConnectionsRouter);
+app.use("/api/distributor/parties", distributorPartyRouter);
+// retailer routes
+app.use("/api/retailer", retailerLoginRouter);
+app.use("/api/retailer/connections", retailerConnectionsRouter);
 
+
+// Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: 'Something went wrong!' });

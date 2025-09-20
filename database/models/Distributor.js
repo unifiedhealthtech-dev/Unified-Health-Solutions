@@ -1,6 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../db.js';
-import User from './userSchema.js';
+import DistributorUser from './DistributorUser.js';
 
 const Distributor = sequelize.define('Distributor', {
   distributor_id: {
@@ -62,7 +62,7 @@ const Distributor = sequelize.define('Distributor', {
 });
 
 // ✅ Associations
-User.hasOne(Distributor, { foreignKey: 'user_id', as: 'Distributor' });
-Distributor.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+DistributorUser.hasOne(Distributor, { foreignKey: 'distributor_id', as: 'Distributor' });
+Distributor.belongsTo(DistributorUser, { foreignKey: 'distributor_id', as: 'DistributorUser' });
 
 export default Distributor;

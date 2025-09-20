@@ -119,40 +119,70 @@ const columns = [
 
 // Update the handleKeyDown function
 const handleKeyDown = (e, rowIndex, column) => {
-  if (e.key !== "Enter") return;
-
-  e.preventDefault();
   const colIndex = columns.indexOf(column);
+  const nextRowIndex = rowIndex + 1;
+  const prevRowIndex = rowIndex - 1;
 
-  // Check if we're at the last data column (tax_rate)
-  if (colIndex === columns.length - 1) {
-    // Last input of the row → jump to next row first input
-    const nextRow = rowIndex + 1;
-
-    if (nextRow >= bulkStockForm.length) {
-      // Add a new row if at the last row
-      addNewRow();
-      // Focus will be handled by the useEffect
-    } else {
-      // Focus on the next row's product_code input
-      setTimeout(() => {
-        const nextInputKey = `${nextRow}-product_code`;
-        if (inputRefs.current[nextInputKey]) {
-          inputRefs.current[nextInputKey].focus();
+  switch (e.key) {
+    case "Enter":
+      e.preventDefault();
+      if (colIndex === columns.length - 1) {
+        // Last column → jump to next row first column
+        if (nextRowIndex >= bulkStockForm.length) {
+          addNewRow(); // Add new row if at last
+        } else {
+          const nextInputKey = `${nextRowIndex}-product_code`;
+          setTimeout(() => inputRefs.current[nextInputKey]?.focus(), 0);
         }
-      }, 0);
-    }
-  } else {
-    // Move to next column in the same row
-    const nextCol = columns[colIndex + 1];
-    setTimeout(() => {
-      const nextInputKey = `${rowIndex}-${nextCol}`;
-      if (inputRefs.current[nextInputKey]) {
-        inputRefs.current[nextInputKey].focus();
+      } else {
+        const nextCol = columns[colIndex + 1];
+        const nextInputKey = `${rowIndex}-${nextCol}`;
+        setTimeout(() => inputRefs.current[nextInputKey]?.focus(), 0);
       }
-    }, 0);
+      break;
+
+    case "ArrowRight":
+      e.preventDefault();
+      if (colIndex < columns.length - 1) {
+        const nextCol = columns[colIndex + 1];
+        const nextInputKey = `${rowIndex}-${nextCol}`;
+        inputRefs.current[nextInputKey]?.focus();
+      }
+      break;
+
+    case "ArrowLeft":
+      e.preventDefault();
+      if (colIndex > 0) {
+        const prevCol = columns[colIndex - 1];
+        const prevInputKey = `${rowIndex}-${prevCol}`;
+        inputRefs.current[prevInputKey]?.focus();
+      }
+      break;
+
+    case "ArrowDown":
+      e.preventDefault();
+      if (nextRowIndex < bulkStockForm.length) {
+        const nextInputKey = `${nextRowIndex}-${column}`;
+        inputRefs.current[nextInputKey]?.focus();
+      } else {
+        addNewRow(); // Add new row if at last
+      }
+      break;
+
+    case "ArrowUp":
+      e.preventDefault();
+      if (prevRowIndex >= 0) {
+        const prevInputKey = `${prevRowIndex}-${column}`;
+        inputRefs.current[prevInputKey]?.focus();
+      }
+      break;
+
+    default:
+      break;
   }
 };
+
+
 
 
 
@@ -183,7 +213,7 @@ const handleKeyDown = (e, rowIndex, column) => {
 
   useEffect(() => {
     // Example: ping the backend to check token
-    fetch('http://localhost:5000/api/inventory/stock', {
+    fetch('http://localhost:5000/api/distributor/inventory/stock', {
       method: 'GET',
       credentials: 'include', // send cookies
     })
@@ -523,7 +553,7 @@ useEffect(() => {
       });
 
       // Send POST request to backend
-      const response = await fetch('http://localhost:5000/api/inventory/products/import', {
+      const response = await fetch('http://localhost:5000/api/distributor/inventory/products/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -547,7 +577,7 @@ useEffect(() => {
 
   const handleExportCSV = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/inventory/products/export', {
+      const response = await fetch('http://localhost:5000/api/distributor/inventory/products/export', {
         method: 'GET',
         credentials: 'include',
       });

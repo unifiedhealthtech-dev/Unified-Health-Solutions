@@ -1,136 +1,157 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Shield, Pill, Building2 } from "lucide-react";
+// src/pages/RetailerLogin.jsx
+import { Link, useNavigate } from 'react-router-dom';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/card';
+import { Separator } from '../components/ui/separator';
+import { Building2, Lock } from 'lucide-react';
+import { useLoginMutation } from '../services/loginApi';
+import { useForm } from 'react-hook-form';
+import { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { setAuth } from '../redux/slices/authSlice';
 
 const Login = () => {
   const navigate = useNavigate();
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  const [registerForm, setRegisterForm] = useState({
-    pharmacyName: "",
-    email: "",
-    password: "",
-    confirmPassword: ""
+  const dispatch = useDispatch();
+  const [error, setError] = useState('');
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    defaultValues: {
+      login_id: '',
+      password: '',
+    },
   });
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    // For demo purposes, redirect to dashboard
-    navigate("/dashboard");
-  };
+  const [loginApi] = useLoginMutation(); // Retailer login API
 
-  const handleRegister = (e) => {
-    e.preventDefault();
-    // For demo purposes, redirect to registration form
-    navigate("/register");
+  const onSubmit = async (data) => {
+    setError('');
+
+    try {
+      const res = await loginApi(data).unwrap(); // Call login API
+
+      if (res.status) {
+        // Store user + retailer in Redux
+        dispatch(setAuth({ 
+          user: {
+            retailer_id: res.user.retailer_id,
+            phone: res.user.phone,
+            role: res.user.role
+          },
+          retailer: res.retailer
+        }));
+
+        // Redirect to retailer dashboard
+        navigate('/dashboard');
+      } else {
+        setError(res.message || 'Login failed.');
+      }
+    } catch (err) {
+      setError(err?.data?.message || 'Invalid Retailer ID / Phone or password.');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-medium mb-4">
-            <Pill className="h-8 w-8 text-primary" />
+    <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-hero">
+      <div className="w-full max-w-md space-y-6">
+        {/* Logo & Branding */}
+        <div className="space-y-4 text-center">
+          <div className="flex items-center justify-center w-20 h-20 mx-auto border bg-white/10 rounded-2xl backdrop-blur-sm border-white/20">
+            <Building2 className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">PharmaRetail Pro</h1>
-          <p className="text-white/80">Complete Pharmacy Management Solution</p>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-white">PharmaRetail Pro</h1>
+            <p className="text-white/80">Telangana State Licensed Retailer Portal</p>
+          </div>
         </div>
 
-        <Card className="shadow-strong">
-          <CardHeader>
-            <CardTitle className="text-center">Welcome Back</CardTitle>
+        {/* Login Card */}
+        <Card className="shadow-xl backdrop-blur-md bg-white/95 border-white/20">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
             <CardDescription className="text-center">
-              Access your pharmacy management dashboard
+              Sign in using Retailer ID or Phone
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="register">Register</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="login">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email / Username</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={loginForm.email}
-                      onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Enter your password"
-                      value={loginForm.password}
-                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" size="lg">
-                    <Shield className="w-4 h-4 mr-2" />
-                    Login to Dashboard
-                  </Button>
-                  <Button type="button" variant="ghost" className="w-full">
-                    Forgot Password?
-                  </Button>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="register">
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="pharmacyName">Pharmacy Name</Label>
-                    <Input
-                      id="pharmacyName"
-                      placeholder="Enter pharmacy name"
-                      value={registerForm.pharmacyName}
-                      onChange={(e) => setRegisterForm({ ...registerForm, pharmacyName: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="registerEmail">Email</Label>
-                    <Input
-                      id="registerEmail"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={registerForm.email}
-                      onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="registerPassword">Password</Label>
-                    <Input
-                      id="registerPassword"
-                      type="password"
-                      placeholder="Create password"
-                      value={registerForm.password}
-                      onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" size="lg">
-                    <Building2 className="w-4 h-4 mr-2" />
-                    Continue Registration
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Login ID Field */}
+              <div className="space-y-2">
+                <Label htmlFor="login_id">Retailer ID or Phone</Label>
+                <Input
+                  id="login_id"
+                  type="text"
+                  placeholder="Enter Retailer ID or Phone"
+                  {...register('login_id', { required: 'Login ID is required' })}
+                />
+                {errors.login_id && (
+                  <p className="mt-1 text-sm text-red-500">{errors.login_id.message}</p>
+                )}
+              </div>
+
+              {/* Password Field */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  {...register('password', { required: 'Password is required' })}
+                />
+                {errors.password && (
+                  <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>
+                )}
+              </div>
+
+              {/* Global Error */}
+              {error && (
+                <div className="p-3 text-sm text-red-600 border border-red-200 rounded-md bg-red-50">
+                  {error}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full"
+                variant="medical"
+                size="lg"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Signing In...' : 'Sign In'}
+              </Button>
+            </form>
+
+            <Separator />
+
+            <div className="space-y-3 text-sm text-center">
+              <Link to="/retailer-register" className="text-primary hover:underline">
+                Register New Retailer
+              </Link>
+              <br />
+              <Link to="/forgot-password" className="text-muted-foreground hover:underline">
+                Forgot Password?
+              </Link>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Footer */}
+        <div className="text-sm text-center text-white/60">
+          <p>Licensed for Telangana State Pharmacy Retailers</p>
+          <p className="mt-1">Compliant with Drug License Act 20B/21B</p>
+        </div>
       </div>
     </div>
   );

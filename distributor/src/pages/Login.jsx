@@ -11,14 +11,12 @@ import {
   CardTitle,
 } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
-import { Building2, User, Lock } from 'lucide-react';
+import { Building2, Lock } from 'lucide-react';
 import { useLoginMutation } from '../services/loginApi';
 import { useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setAuth } from '../redux/slices/authSlice';
-import authSlice from '../redux/slices/authSlice';
-
 
 const Login = () => {
   const navigate = useNavigate();
@@ -31,7 +29,7 @@ const Login = () => {
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
-      username: '',
+      login_id: '',
       password: '',
     },
   });
@@ -42,23 +40,28 @@ const Login = () => {
     setError('');
 
     try {
-      const res = await loginApi(data).unwrap(); // ✅ Call login API
+      const res = await loginApi(data).unwrap(); // Call login API
 
       if (res.status) {
-        // ✅ Store user + distributor in Redux
-        dispatch(setAuth({ user: res.user, distributor: res.distributor }));
+        // Store user + distributor in Redux
+        dispatch(setAuth({ 
+          user: {
+            distributor_id: res.user.distributor_id,
+            phone: res.user.phone,
+            role: res.user.role
+          },
+          distributor: res.distributor
+        }));
 
-        // ✅ Redirect to dashboard
+        // Redirect to dashboard
         navigate('/dashboard');
       } else {
-        navigate('/login');
         setError(res.message || 'Login failed.');
       }
     } catch (err) {
-      setError(err?.data?.message || 'Invalid username or password. Please try again.');
+      setError(err?.data?.message || 'Invalid Distributor ID / Phone or password.');
     }
   };
-  
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-hero">
@@ -79,28 +82,22 @@ const Login = () => {
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
             <CardDescription className="text-center">
-              Sign in to your distributor account
+              Sign in using Distributor ID or Phone
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* Username Field */}
+              {/* Login ID Field */}
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <div className="relative">
-                  <User className="absolute w-4 h-4 left-3 top-3 text-muted-foreground" />
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="Enter your username"
-                    {...register('username', {
-                      required: 'Username is required',
-                    })}
-                    className="pl-10"
-                  />
-                </div>
-                {errors.username && (
-                  <p className="mt-1 text-sm text-red-500">{errors.username.message}</p>
+                <Label htmlFor="login_id">Distributor ID or Phone</Label>
+                <Input
+                  id="login_id"
+                  type="text"
+                  placeholder="Enter Distributor ID or Phone"
+                  {...register('login_id', { required: 'Login ID is required' })}
+                />
+                {errors.login_id && (
+                  <p className="mt-1 text-sm text-red-500">{errors.login_id.message}</p>
                 )}
               </div>
 
@@ -113,9 +110,7 @@ const Login = () => {
                     id="password"
                     type="password"
                     placeholder="Enter your password"
-                    {...register('password', {
-                      required: 'Password is required',
-                    })}
+                    {...register('password', { required: 'Password is required' })}
                     className="pl-10"
                   />
                 </div>
@@ -124,7 +119,7 @@ const Login = () => {
                 )}
               </div>
 
-              {/* Global Error (from API) */}
+              {/* Global Error */}
               {error && (
                 <div className="p-3 text-sm text-red-600 border border-red-200 rounded-md bg-red-50">
                   {error}

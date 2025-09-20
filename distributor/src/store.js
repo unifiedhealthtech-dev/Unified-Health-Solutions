@@ -6,6 +6,8 @@ import { combineReducers } from 'redux';
 import authReducer from './redux/slices/authSlice';
 import { loginApi } from './services/loginApi';
 import { inventoryApi } from './services/inventoryApi';
+import {distributorConnectionsApi} from "./services/distributorConnectionsApi"
+import { partiesApi } from './services/partiesApi';
 
 const persistConfig = {
   key: 'root',
@@ -17,6 +19,8 @@ const rootReducer = combineReducers({
   auth: authReducer,
   [loginApi.reducerPath]: loginApi.reducer,
   [inventoryApi.reducerPath]: inventoryApi.reducer,
+  [distributorConnectionsApi.reducerPath]: distributorConnectionsApi.reducer,
+  [partiesApi.reducerPath]: partiesApi.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -26,7 +30,7 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false, // needed for redux-persist
-    }).concat(loginApi.middleware, inventoryApi.middleware),
+    }).concat(loginApi.middleware, inventoryApi.middleware, distributorConnectionsApi.middleware, partiesApi.middleware),
 });
 
 setupListeners(store.dispatch);
