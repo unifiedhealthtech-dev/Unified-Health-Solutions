@@ -17,7 +17,9 @@ const retailerAuth = async (req, res, next) => {
     req.user = {
       retailer_id: user.retailer_id,
       email: user.email,
-      role: decoded.role || user.role || 'retailer'
+      role: decoded.role || user.role || 'retailer',
+      user_id: user.retailer_id,// Standardize to user_id for notifications
+      name: user.name
     };
 
     next();

@@ -17,7 +17,9 @@ import DistributorUser from '../../../database/models/DistributorUser.js';
     req.user = {
       distributor_id: user.distributor_id,
       email: user.email,
-      role: decoded.role || user.role || 'distributor'
+      role: decoded.role || user.role || 'distributor',
+      user_id: user.distributor_id,// Standardize to user_id for notifications
+      name: user.name
     };
 
     next();

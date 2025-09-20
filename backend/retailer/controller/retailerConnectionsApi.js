@@ -1,7 +1,8 @@
 // controllers/distributorConnections/retailerController.js
 import ConnectedDistributors from "../../../database/models/ConnectedDistributor.js";
 import Distributor from '../../../database/models/Distributor.js';
-
+import Notification from '../../../database/models/Notification.js';
+import { Op } from 'sequelize';
 // ✅ Get all distributors with connection status
 export const getAllDistributors = async (req, res) => {
   try {
@@ -41,23 +42,54 @@ export const sendConnectionRequest = async (req, res) => {
     const { distributorId } = req.body;
     const retailerId = req.user.retailer_id;
 
+    // ✅ Check if distributor exists
     const distributor = await Distributor.findByPk(distributorId);
-    if (!distributor) return res.status(404).json({ success: false, message: 'Distributor not found' });
+    if (!distributor) {
+      return res.status(404).json({ success: false, message: 'Distributor not found' });
+    }
 
-    const existingConnection = await ConnectedDistributors.findOne({
-      where: { retailer_id: retailerId, distributor_id: distributorId }
+    // ✅ Check if connection already exists or is pending
+    const existing = await ConnectedDistributors.findOne({
+      where: {
+        retailer_id: retailerId,
+        distributor_id: distributorId,
+        status: { [Op.in]: ['pending', 'connected'] },
+      },
     });
-    if (existingConnection) return res.status(400).json({ success: false, message: 'Connection already exists or requested' });
 
-    const newConnection = await ConnectedDistributors.create({
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Connection already exists or pending' });
+    }
+
+    // ✅ Create new connection request
+    const newRequest = await ConnectedDistributors.create({
       retailer_id: retailerId,
       distributor_id: distributorId,
-      status: 'pending'
+      status: 'pending',
     });
 
-    res.status(201).json({ success: true, data: newConnection, message: 'Connection request sent successfully' });
+    // ✅ Create notification for distributor
+    const distributorNotification = await Notification.create({
+      user_id: distributorId,
+      role: 'distributor',
+      title: 'New Connection Request',
+      message: `${req.user.name} wants to connect with you.`,
+      type: 'info',
+      related_id: newRequest.id,
+    });
+
+    // ✅ Emit notification via Socket.IO
+    if (req.io) {
+      req.io.to(`distributor_${distributorId}`).emit('newNotification', distributorNotification);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: newRequest,
+      message: 'Connection request sent successfully',
+    });
   } catch (error) {
-    console.error('Error creating connection request:', error);
+    console.error('Error sending connection request:', error);
     res.status(500).json({ success: false, message: 'Failed to send connection request' });
   }
 };

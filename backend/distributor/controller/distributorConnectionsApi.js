@@ -1,7 +1,8 @@
 // controllers/distributorConnections/distributorController.js
 import ConnectedDistributors from '../../../database/models/ConnectedDistributor.js';
 import Retailer from '../../../database/models/Retailer.js';
-
+import Notification from '../../../database/models/Notification.js'; 
+import { Op } from 'sequelize';
 export const getConnectionRequests = async (req, res) => {
   try {
     const distributorId = req.user.distributor_id;
@@ -38,12 +39,26 @@ export const acceptConnectionRequest = async (req, res) => {
 
     await connection.update({ status: 'connected', updated_at: new Date() });
 
-    res.json({ success: true, data: connection, message: 'Connection request accepted successfully' });
+    // ✅ Create notification for Retailer
+    const retailerNotification = await Notification.create({
+      user_id: connection.retailer_id,
+      role: 'retailer',
+      title: 'Connection Accepted',
+      message: `Your connection request to ${req.user.name} has been accepted.`,
+      type: 'success',
+      related_id: connection.id,
+    });
+
+    // ✅ Emit real-time notification to Retailer
+    req.io.to(`retailer_${connection.retailer_id}`).emit('newNotification', retailerNotification);
+
+    res.json({ success: true,  connection, message: 'Connection request accepted successfully' });
   } catch (error) {
     console.error('Error accepting connection request:', error);
     res.status(500).json({ success: false, message: 'Failed to accept connection request' });
   }
 };
+
 
 export const rejectConnectionRequest = async (req, res) => {
   try {
@@ -58,13 +73,25 @@ export const rejectConnectionRequest = async (req, res) => {
 
     await connection.update({ status: 'rejected', updated_at: new Date() });
 
+    // ✅ Create notification for Retailer
+    const retailerNotification = await Notification.create({
+      user_id: connection.retailer_id,
+      role: 'retailer',
+      title: 'Connection Rejected',
+      message: `Your connection request to ${req.user.name} has been rejected.`,
+      type: 'error',
+      related_id: connection.id,
+    });
+
+    // ✅ Emit to Retailer
+    req.io.to(`retailer_${connection.retailer_id}`).emit('newNotification', retailerNotification);
+
     res.json({ success: true, message: 'Connection request rejected successfully' });
   } catch (error) {
     console.error('Error rejecting connection request:', error);
     res.status(500).json({ success: false, message: 'Failed to reject connection request' });
   }
 };
-
 export const getConnectedRetailers = async (req, res) => {
   try {
     const distributorId = req.user.distributor_id;

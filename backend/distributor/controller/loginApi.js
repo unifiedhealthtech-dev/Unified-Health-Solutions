@@ -86,7 +86,7 @@ export const login = async (req, res) => {
     res.json({
       status: true,
       message: 'Login successful',
-      user: { distributor_id: user.distributor_id, phone: user.phone, role: user.role },
+      user: { distributor_id: user.distributor_id, phone: user.phone, name: user.name, role: user.role },
       distributor: user.Distributor || null
     });
   } catch (error) {

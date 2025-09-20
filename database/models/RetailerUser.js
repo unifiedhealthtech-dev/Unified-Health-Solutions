@@ -1,3 +1,4 @@
+// models/RetailerUser.js
 import { DataTypes } from 'sequelize';
 import sequelize from '../db.js';
 
@@ -6,6 +7,11 @@ const RetailerUser = sequelize.define('RetailerUser', {
     type: DataTypes.INTEGER,
     autoIncrement: true,
     primaryKey: true
+  },
+  name: { // ✅ Added: Retailer/Pharmacy name
+    type: DataTypes.STRING(255),
+    allowNull: false,
+    comment: 'Retailer or Pharmacy name'
   },
   username: {
     type: DataTypes.STRING,

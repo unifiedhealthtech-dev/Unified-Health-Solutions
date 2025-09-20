@@ -1,5 +1,5 @@
 // src/layouts/AppLayout.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { logout as logoutAction } from "../../redux/slices/authSlice";
@@ -7,33 +7,62 @@ import { useLogoutMutation } from '../../services/loginApi';
 import { SidebarProvider, SidebarTrigger } from "../../components/ui/sidebar";
 import { AppSidebar } from "../../components/layout/AppSidebar";
 import { Button } from "../../components/ui/button";
-import { User, Bell, LogOut, X } from "lucide-react";
+import { User, Bell, LogOut, X, Check, Eye } from "lucide-react"; // ✅ Added Eye, Check
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "../../components/ui/dropdown-menu";
+import { Badge } from "../../components/ui/badge"; // ✅ Import Badge for unread count
+import {
+  useGetNotificationsQuery,
+  useMarkAsReadMutation,
+} from "../../services/notificationsApi"; // ✅ Import RTK Query hooks
 
 const AppLayout = ({ children }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [showProfile, setShowProfile] = useState(false);
 
-  const distributor = useSelector((state) => state.auth?.distributor);
   const user = useSelector((state) => state.auth?.user);
+  const distributor = useSelector((state) => state.auth?.distributor);
 
   const [logoutApi] = useLogoutMutation();
 
+  // ✅ Get notifications for bell dropdown
+  const { data: notificationsData, isLoading: notificationsLoading } = useGetNotificationsQuery(
+    { role: user?.role },
+    { skip: !user?.role }
+  );
+  const notifications = notificationsData?.data || [];
+
+  const [markAsRead] = useMarkAsReadMutation();
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
   const handleLogout = async () => {
     try {
-      await logoutApi().unwrap(); // clear server-side session/cookie
-      dispatch(logoutAction());    // ✅ dispatch plain object
+      await logoutApi().unwrap();
+      dispatch(logoutAction());
       navigate('/login');
     } catch (err) {
       console.error('Logout failed:', err);
     }
   };
+
+  // ✅ Handle marking notification as read
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await markAsRead({ role: user.role, notificationId }).unwrap();
+    } catch (error) {
+      console.error("Failed to mark as read:", error);
+    }
+  };
+
+  // ✅ Get last 5 notifications for dropdown
+  const recentNotifications = notifications.slice(0, 5);
 
   return (
     <SidebarProvider>
@@ -53,10 +82,72 @@ const AppLayout = ({ children }) => {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon">
-                <Bell className="w-4 h-4" />
-              </Button>
-              
+              {/* ✅ Notification Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative">
+                    <Bell className="w-4 h-4" />
+                    {unreadCount > 0 && (
+                      <Badge
+                        variant="destructive"
+                        className="absolute flex items-center justify-center w-4 h-4 p-0 text-xs -top-1 -right-1"
+                      >
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="p-0 w-80" align="end">
+                  <div className="p-3 font-semibold border-b">Notifications</div>
+                  {notificationsLoading ? (
+                    <div className="p-4 text-sm text-center">Loading...</div>
+                  ) : recentNotifications.length === 0 ? (
+                    <div className="p-4 text-sm text-center text-muted-foreground">
+                      No new notifications
+                    </div>
+                  ) : (
+                    <div className="overflow-y-auto max-h-96">
+                      {recentNotifications.map((n) => (
+                        <DropdownMenuItem
+                          key={n.notification_id}
+                          className="flex flex-col items-start gap-1 px-3 py-2 cursor-pointer hover:bg-accent"
+                          onClick={() => {
+                            if (!n.is_read) {
+                              handleMarkAsRead(n.notification_id);
+                            }
+                            navigate('/notifications'); // Go to full page
+                          }}
+                        >
+                          <div className="flex items-center w-full gap-2">
+                            <span className="text-sm font-medium">{n.title}</span>
+                            {!n.is_read && (
+                              <Badge variant="secondary" className="text-xs">New</Badge>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">{n.message}</span>
+                          <span className="mt-1 text-xs text-muted-foreground">
+                            {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  )}
+                  {notifications.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="justify-center cursor-pointer"
+                        onClick={() => navigate('/notifications')}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View All Notifications
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">

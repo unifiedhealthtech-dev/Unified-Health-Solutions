@@ -6,6 +6,7 @@ import { combineReducers } from 'redux';
 import authReducer from './redux/slices/authSlice';
 import { loginApi } from './services/loginApi';
 import { retailerConnectionsApi } from './services/retailerConnectionsApi';
+import { notificationsApi } from './services/notificationsApi';
 
 const persistConfig = {
   key: 'root',
@@ -17,6 +18,7 @@ const rootReducer = combineReducers({
   auth: authReducer,
   [loginApi.reducerPath]: loginApi.reducer,
   [retailerConnectionsApi.reducerPath]: retailerConnectionsApi.reducer,
+  [notificationsApi.reducerPath]: notificationsApi.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -30,7 +32,8 @@ export const store = configureStore({
       },
     }).concat( // Fixed: Properly close the concat method
       loginApi.middleware,
-      retailerConnectionsApi.middleware
+      retailerConnectionsApi.middleware,
+      notificationsApi.middleware,
     ), // This closing parenthesis was missing
   });
 setupListeners(store.dispatch);
