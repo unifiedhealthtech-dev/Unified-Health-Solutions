@@ -7,7 +7,7 @@ import { useLogoutMutation } from '../../services/loginApi';
 import { SidebarProvider, SidebarTrigger } from "../../components/ui/sidebar";
 import { AppSidebar } from "../../components/layout/AppSidebar";
 import { Button } from "../../components/ui/button";
-import { User, Bell, LogOut, X, Check, Eye } from "lucide-react"; // ✅ Added Eye, Check
+import { User, Bell, LogOut, X, Check, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,11 +15,11 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "../../components/ui/dropdown-menu";
-import { Badge } from "../../components/ui/badge"; // ✅ Import Badge for unread count
+import { Badge } from "../../components/ui/badge";
 import {
   useGetNotificationsQuery,
   useMarkAsReadMutation,
-} from "../../services/notificationsApi"; // ✅ Import RTK Query hooks
+} from "../../services/notificationsApi";
 
 const AppLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -31,12 +31,12 @@ const AppLayout = ({ children }) => {
 
   const [logoutApi] = useLogoutMutation();
 
-  // ✅ Get notifications for bell dropdown
+  // ✅ Fetch notifications for dropdown
   const { data: notificationsData, isLoading: notificationsLoading } = useGetNotificationsQuery(
     { role: user?.role },
     { skip: !user?.role }
   );
-  const notifications = notificationsData?.data || [];
+  const notifications = notificationsData?.notifications || [];
 
   const [markAsRead] = useMarkAsReadMutation();
 
@@ -82,7 +82,7 @@ const AppLayout = ({ children }) => {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* ✅ Notification Dropdown */}
+              {/* ✅ Notification Dropdown — Clicking bell opens dropdown, NOT page */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative">
@@ -111,11 +111,12 @@ const AppLayout = ({ children }) => {
                         <DropdownMenuItem
                           key={n.notification_id}
                           className="flex flex-col items-start gap-1 px-3 py-2 cursor-pointer hover:bg-accent"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             if (!n.is_read) {
                               handleMarkAsRead(n.notification_id);
                             }
-                            navigate('/notifications'); // Go to full page
+                            // Do NOT navigate here — stay in dropdown
                           }}
                         >
                           <div className="flex items-center w-full gap-2">
@@ -136,8 +137,11 @@ const AppLayout = ({ children }) => {
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        className="justify-center cursor-pointer"
-                        onClick={() => navigate('/notifications')}
+                        className="justify-center cursor-pointer "
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('/notifications'); // ✅ Only here — when clicking "View All"
+                        }}
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View All Notifications
@@ -226,7 +230,6 @@ const AppLayout = ({ children }) => {
                       </div>
                     </>
                   )}
-                  
                 </div>
 
                 <div className="flex justify-end mt-6">

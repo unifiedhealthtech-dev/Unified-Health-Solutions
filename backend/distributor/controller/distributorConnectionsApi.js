@@ -12,12 +12,11 @@ export const getConnectionRequests = async (req, res) => {
         model: Retailer,
         as: 'Retailer',
         attributes: [
-          'retailer_id','name','phone','email','address','city','state','license_number','gst_number'
+          'retailer_id','name','phone','email','address','city','state','license_number','gst_number', 'contact_person','pincode'
         ]
       }],
       order: [['created_at', 'DESC']]
     });
-    console.log('Fetched Connection Requests:', requests);
     res.json({ success: true, data: requests, message: 'Connection requests retrieved successfully' });
   } catch (error) {
     console.error('Error fetching connection requests:', error);
@@ -79,7 +78,7 @@ export const rejectConnectionRequest = async (req, res) => {
       role: 'retailer',
       title: 'Connection Rejected',
       message: `Your connection request to ${req.user.name} has been rejected.`,
-      type: 'error',
+      type: 'rejected',
       related_id: connection.id,
     });
 

@@ -32,6 +32,8 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { logout as logoutAction } from "../redux/slices/authSlice";
 import { useLogoutMutation } from '../services/loginApi';
+import { useGetNotificationsQuery, useMarkAsReadMutation } from '../services/notificationsApi'; // ✅ Import notification hooks
+import { Badge } from "../components/ui/badge"; // ✅ Import Badge component
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -41,13 +43,27 @@ const Dashboard = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // 👈 Added for modal
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false); // ✅ Added for notifications dropdown
   const [logoutApi] = useLogoutMutation();
   const profileRef = useRef(null);
+  const notificationsRef = useRef(null); // ✅ Added for notifications dropdown
 
   // Get data from Redux store
   const retailer = useSelector((state) => state.auth?.retailer);
   const user = useSelector((state) => state.auth?.user);
+
+  // ✅ Get notifications data
+  const { data: notificationsData, isLoading: notificationsLoading } = useGetNotificationsQuery(
+    { role: user?.role },
+    { skip: !user?.role }
+  );
+  const notifications = notificationsData?.notifications || [];
+  
+  const [markAsRead] = useMarkAsReadMutation();
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const recentNotifications = notifications.slice(0, 5); // ✅ Get last 5 notifications
 
   const handleLogout = async () => {
     try {
@@ -74,21 +90,49 @@ const Dashboard = () => {
     setIsProfileMenuOpen(false);
   };
 
+  // ✅ Toggle notifications dropdown
+  const toggleNotifications = () => {
+    setIsNotificationsOpen(!isNotificationsOpen);
+  };
+
+  // ✅ Close notifications dropdown
+  const closeNotifications = () => {
+    setIsNotificationsOpen(false);
+  };
+
+  // ✅ Handle marking notification as read
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await markAsRead({ role: user.role, notificationId }).unwrap();
+    } catch (error) {
+      console.error("Failed to mark as read:", error);
+    }
+  };
+
+  // ✅ Navigate to notifications page
+  const goToNotificationsPage = () => {
+    closeNotifications();
+    navigate("/dashboard/notifications");
+  };
+
   // Open Profile Modal
   const openProfileModal = () => {
     setIsProfileModalOpen(true);
-    closeProfileMenu(); // Close dropdown after click
+    closeProfileMenu();
   };
 
   const closeProfileModal = () => {
     setIsProfileModalOpen(false);
   };
 
-  // Close menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setIsProfileMenuOpen(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setIsNotificationsOpen(false);
       }
     };
 
@@ -206,56 +250,114 @@ const Dashboard = () => {
             </div>
 
             {/* Right Side - Notifications + Profile */}
-<div className="flex items-center gap-2">
-  {/* Bell Icon with Badge */}
-  <button
-    className="relative p-2 text-gray-700 rounded-full hover:bg-gray-100"
-    aria-label="Notifications"
-  >
-    <Bell className="w-5 h-5" />
-    {/* Optional: Red dot badge */}
-    {/* <span className="absolute flex w-2 h-2 top-1 right-1">
-      <span className="absolute inline-flex w-full h-full bg-red-400 rounded-full opacity-75 animate-ping"></span>
-      <span className="relative inline-flex w-2 h-2 bg-red-500 rounded-full"></span>
-    </span> */}
-  </button>
+            <div className="flex items-center gap-2">
+              {/* ✅ Bell Icon with Badge and Dropdown */}
+              <div className="relative" ref={notificationsRef}>
+                <button
+                  onClick={toggleNotifications}
+                  className="relative p-2 text-gray-700 rounded-full hover:bg-gray-100"
+                  aria-label="Notifications"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute flex items-center justify-center w-4 h-4 p-0 text-xs -top-1 -right-1"
+                    >
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </Badge>
+                  )}
+                </button>
 
-  {/* Profile Icon with Dropdown */}
-  <div className="relative" ref={profileRef}>
-    <button
-      onClick={toggleProfileMenu}
-      className="p-2 text-gray-700 rounded-full hover:bg-gray-100"
-      aria-label="Profile menu"
-    >
-      <User className="w-5 h-5" />
-    </button>
+                {/* ✅ Notifications Dropdown */}
+                {isNotificationsOpen && (
+                  <div className="absolute right-0 z-50 mt-2 bg-white rounded-md shadow-lg w-80 ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <div className="p-3 font-semibold border-b">Notifications</div>
+                    {notificationsLoading ? (
+                      <div className="p-4 text-sm text-center">Loading...</div>
+                    ) : recentNotifications.length === 0 ? (
+                      <div className="p-4 text-sm text-center text-gray-500">
+                        No new notifications
+                      </div>
+                    ) : (
+                      <div className="overflow-y-auto max-h-96">
+                        {recentNotifications.map((n) => (
+                          <div
+                            key={n.notification_id}
+                            className="flex flex-col px-4 py-3 border-b cursor-pointer hover:bg-gray-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!n.is_read) {
+                                handleMarkAsRead(n.notification_id);
+                              }
+                              goToNotificationsPage();
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">{n.title}</span>
+                              {!n.is_read && (
+                                <Badge variant="secondary" className="text-xs">New</Badge>
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs text-gray-600">{n.message}</p>
+                            <p className="mt-1 text-xs text-gray-400">
+                              {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {notifications.length > 0 && (
+                      <div className="p-2 border-t">
+                        <button
+                          onClick={goToNotificationsPage}
+                          className="flex items-center w-full px-3 py-2 text-sm rounded-md hover:bg-blue-50"
+                        >
+                          <Bell className="w-4 h-4 mr-2" />
+                          View All Notifications
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
-    {/* Dropdown Menu */}
-    {isProfileMenuOpen && (
-      <div className="absolute right-0 z-50 w-48 mt-2 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-        <div className="py-1">
-          <button
-            onClick={openProfileModal}
-            className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100"
-          >
-            <User className="w-4 h-4 mr-3" />
-            Profile Settings
-          </button>
-          <button
-            onClick={() => {
-              closeProfileMenu();
-              handleLogout();
-            }}
-            className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100"
-          >
-            <LogOut className="w-4 h-4 mr-3" />
-            Logout
-          </button>
-        </div>
-      </div>
-    )}
-  </div>
-</div>
+              {/* Profile Icon with Dropdown */}
+              <div className="relative" ref={profileRef}>
+                <button
+                  onClick={toggleProfileMenu}
+                  className="p-2 text-gray-700 rounded-full hover:bg-gray-100"
+                  aria-label="Profile menu"
+                >
+                  <User className="w-5 h-5" />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isProfileMenuOpen && (
+                  <div className="absolute right-0 z-50 w-48 mt-2 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <div className="py-1">
+                      <button
+                        onClick={openProfileModal}
+                        className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100"
+                      >
+                        <User className="w-4 h-4 mr-3" />
+                        Profile Settings
+                      </button>
+                      <button
+                        onClick={() => {
+                          closeProfileMenu();
+                          handleLogout();
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100"
+                      >
+                        <LogOut className="w-4 h-4 mr-3" />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </header>
 

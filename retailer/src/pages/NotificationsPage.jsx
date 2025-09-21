@@ -16,7 +16,7 @@ const NotificationsPage = () => {
   const [markAsRead] = useMarkAsReadMutation();
   const [markAllAsRead] = useMarkAllAsReadMutation();
 
-  const notifications = data?.data || [];
+  const notifications = data?.notifications || [];
 
   const handleMarkAsRead = async (id) => {
     try {
@@ -37,7 +37,7 @@ const NotificationsPage = () => {
   const getTypeBadge = (type) => {
     const variants = {
       success: "success",
-      error: "destructive",
+      rejected: "destructive",
       warning: "warning",
       info: "outline",
     };

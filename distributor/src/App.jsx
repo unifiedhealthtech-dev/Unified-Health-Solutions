@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useState, useCallback } from "react"; // ✅ Import useCallback
+import React, { useState, useCallback } from "react";
 import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -40,22 +40,23 @@ const NotificationToastManager = ({ children }) => {
   const [toasts, setToasts] = useState([]);
   const dispatch = useDispatch();
 
-  // ✅ Memoize this — prevents infinite loop
+  // ✅ Memoize this function — CRITICAL FIX to prevent infinite loop
   const handleNewNotification = useCallback((notification) => {
     setToasts(prev => {
-      // ✅ Avoid duplicates — extra safety
+      // ✅ Optional: Prevent duplicate notifications
       if (prev.some(t => t.notification_id === notification.notification_id)) {
         return prev;
       }
       return [...prev, notification];
     });
+    // Invalidate RTK Query cache to update notification list in real-time
     dispatch(notificationsApi.util.invalidateTags(["Notifications"]));
-  }, [dispatch]); // ✅ Only depends on dispatch (stable)
+  }, [dispatch]);
 
   // ✅ Initialize socket — now safe
   useSocketNotifications(handleNewNotification);
 
-  // ✅ Also memoize this
+  // ✅ Also memoize remove handler
   const removeToast = useCallback((id) => {
     setToasts(prev => prev.filter(t => t.notification_id !== id));
   }, []);
@@ -163,7 +164,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/notifications"
+                  path="/notifications" // ✅ Route to full notifications page
                   element={
                     <AppLayout>
                       <NotificationsPage />

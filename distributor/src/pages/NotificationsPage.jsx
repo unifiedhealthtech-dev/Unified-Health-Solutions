@@ -6,7 +6,7 @@ import { ScrollArea } from "../components/ui/scroll-area";
 import { Clock, Check, Eye, Bell } from "lucide-react";
 import { useGetNotificationsQuery, useMarkAsReadMutation, useMarkAllAsReadMutation } from "../services/notificationsApi";
 import { useSelector } from "react-redux";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const NotificationsPage = () => {
   const user = useSelector((state) => state.auth.user);
@@ -16,7 +16,8 @@ const NotificationsPage = () => {
   const [markAsRead] = useMarkAsReadMutation();
   const [markAllAsRead] = useMarkAllAsReadMutation();
 
-  const notifications = data?.data || [];
+  const notifications = data?.notifications || [];
+
 
   const handleMarkAsRead = async (id) => {
     try {

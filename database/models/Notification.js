@@ -26,7 +26,7 @@ const Notification = sequelize.define('Notification', {
     allowNull: false,
   },
   type: {
-    type: DataTypes.ENUM('info', 'success', 'warning', 'error'),
+    type: DataTypes.ENUM('info', 'success', 'warning', 'rejected'),
     defaultValue: 'info',
   },
   is_read: {

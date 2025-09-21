@@ -122,7 +122,15 @@ const Parties = () => {
   const connectionRequests = requestsData?.data || requestsData || [];
   console.log('Connection Requests Data:', connectionRequests);
   const connectedRetailers = connectedRetailersData?.data || connectedRetailersData || [];
-
+useEffect(() => {
+  if (activeTab === "parties") {
+    refetchParties();
+  } else if (activeTab === "requests") {
+    refetchRequests();
+  } else if (activeTab === "connected") {
+    refetchConnectedRetailers();
+  }
+}, [activeTab, refetchParties, refetchRequests, refetchConnectedRetailers]);
   const filteredParties = parties.filter(party => {
     const matchesSearch = party.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       party.code?.toLowerCase().includes(searchTerm.toLowerCase());

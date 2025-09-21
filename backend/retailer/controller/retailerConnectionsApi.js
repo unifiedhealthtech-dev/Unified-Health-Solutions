@@ -12,7 +12,7 @@ export const getAllDistributors = async (req, res) => {
       where: { is_active: true },
       attributes: [
         'distributor_id','name','phone','email','address','city','state','pincode',
-        'license_number','gst_number','is_active','created_at'
+        'license_number','gst_number','is_active','created_at', 'contact_person'
       ],
       order: [['name', 'ASC']]
     });
@@ -136,7 +136,7 @@ export const getConnectionStatus = async (req, res) => {
 // ✅ Disconnect from a distributor
 export const disconnectDistributor = async (req, res) => {
   try {
-    const retailerId = 1;   // ✅ comes from token
+    const retailerId = req.user.retailer_id;   // ✅ comes from token
     const { distributorId } = req.params;
 
     console.log("Retailer ID:", retailerId, "Distributor ID:", distributorId);

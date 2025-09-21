@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -18,6 +18,7 @@ import {
   ToastClose,
   ToastViewport,
 } from "../components/ui/toast";
+import { UserPlus } from "lucide-react";
 import { useSelector } from "react-redux";
 
 const AllDistributors = () => {
@@ -99,7 +100,9 @@ const AllDistributors = () => {
       showToast("Error", errorMessage, "destructive");
     }
   };
-
+useEffect(() => {
+  refetch();
+}, [searchTerm, locationFilter, statusFilter, refetch]);
   // -----------------------------
   // Status Badge
   // -----------------------------
@@ -251,6 +254,11 @@ const AllDistributors = () => {
                       </div>
                     </TableCell>
                     <TableCell>
+                      
+                      <div className="flex items-center gap-1 text-sm">
+                                <UserPlus className="w-3 h-3" />
+                                {distributor.contact_person || 'N/A'}
+                              </div>
                       <div className="text-sm">{distributor.phone}</div>
                       <div className="text-xs text-muted-foreground">
                         {distributor.email}

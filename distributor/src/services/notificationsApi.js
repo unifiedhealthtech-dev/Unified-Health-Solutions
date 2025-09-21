@@ -1,7 +1,7 @@
 // services/notificationsApi.js
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-const baseUrl = "http://localhost:5000/api";
+const baseUrl = "http://localhost:5000/api"; // Base URL is /api
 
 export const notificationsApi = createApi({
   reducerPath: "notificationsApi",
@@ -12,7 +12,7 @@ export const notificationsApi = createApi({
   tagTypes: ["Notifications"],
   endpoints: (builder) => ({
     getNotifications: builder.query({
-      query: ({ role }) => `/${role}/notifications`,
+      query: ({ role }) => `/${role}/notifications`, // ✅ Becomes /distributor/notifications or /retailer/notifications
       providesTags: ["Notifications"],
     }),
     markAsRead: builder.mutation({
