@@ -1,21 +1,21 @@
-// Updated DistributorStockItem model with schedule and rack_no fields
+// models/RetailerStockItem.js
 import { DataTypes } from 'sequelize';
 import sequelize from "../db.js";
 import Product from './Product.js';
-import Distributor from './Distributor.js';
+import Retailer from './Retailer.js';
 
-const DistributorStockItem = sequelize.define('DistributorStockItem', {
+const RetailerStockItem = sequelize.define('RetailerStockItem', {
   stock_id: {
     type: DataTypes.INTEGER,
     autoIncrement: true,
     primaryKey: true
   },
-  distributor_id: {
-    type: DataTypes.STRING(20),
+  retailer_id: {
+    type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: Distributor,
-      key: 'distributor_id'
+      model: Retailer,
+      key: 'retailer_id'
     }
   },
   product_code: {
@@ -76,28 +76,29 @@ const DistributorStockItem = sequelize.define('DistributorStockItem', {
   },
   status: {
     type: DataTypes.ENUM('In Stock', 'Low Stock', 'Critical', 'Expired'),
-    defaultValue: 'In Stock'
+    defaultValue: 'In Stock',
+    allowNull: false
   },
-  // New fields
   schedule: {
     type: DataTypes.ENUM('None', 'Schedule G', 'Schedule C', 'Schedule C1', 'Schedule F', 'Schedule J', 'Schedule K', 'Schedule H', 'Schedule H1', 'Schedule X'),
-    defaultValue: 'None'
+    defaultValue: 'None',
+    allowNull: false
   },
   rack_no: {
     type: DataTypes.STRING(50),
-    allowNull: true
+    allowNull: false
   }
 }, {
   timestamps: true,
-  tableName: 'distributor_stock_items',
+  tableName: 'retailer_stock_items',
   underscored: true
 });
 
 // Associations
-DistributorStockItem.belongsTo(Product, { foreignKey: 'product_code' });
-DistributorStockItem.belongsTo(Distributor, { foreignKey: 'distributor_id', as: 'Distributor' });
+RetailerStockItem.belongsTo(Product, { foreignKey: 'product_code' });
+RetailerStockItem.belongsTo(Retailer, { foreignKey: 'retailer_id', as: 'Retailer' });
 
-Product.hasMany(DistributorStockItem, { foreignKey: 'product_code' });
-Distributor.hasMany(DistributorStockItem, { foreignKey: 'distributor_id', as: 'DistributorStockItems' });
+Product.hasMany(RetailerStockItem, { foreignKey: 'product_code' });
+Retailer.hasMany(RetailerStockItem, { foreignKey: 'retailer_id', as: 'RetailerStockItems' });
 
-export default DistributorStockItem;
+export default RetailerStockItem;

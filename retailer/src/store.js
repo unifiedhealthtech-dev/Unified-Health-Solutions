@@ -7,6 +7,7 @@ import authReducer from './redux/slices/authSlice';
 import { loginApi } from './services/loginApi';
 import { retailerConnectionsApi } from './services/retailerConnectionsApi';
 import { notificationsApi } from './services/notificationsApi';
+import { retailerInventoryApi } from './services/retailerInventoryApi';
 
 const persistConfig = {
   key: 'root',
@@ -19,6 +20,7 @@ const rootReducer = combineReducers({
   [loginApi.reducerPath]: loginApi.reducer,
   [retailerConnectionsApi.reducerPath]: retailerConnectionsApi.reducer,
   [notificationsApi.reducerPath]: notificationsApi.reducer,
+  [retailerInventoryApi.reducerPath]: retailerInventoryApi.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -34,6 +36,7 @@ export const store = configureStore({
       loginApi.middleware,
       retailerConnectionsApi.middleware,
       notificationsApi.middleware,
+      retailerInventoryApi.middleware,
     ), // This closing parenthesis was missing
   });
 setupListeners(store.dispatch);

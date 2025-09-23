@@ -1,6 +1,7 @@
-import { Op, fn, col, literal, cast } from 'sequelize';
+// controllers/retailerInventoryController.js
+import { Op, fn, col, literal } from 'sequelize';
 import Product from '../../../database/models/Product.js';
-import DistributorStockItem from '../../../database/models/DistributorStockItem.js';
+import RetailerStockItem from '../../../database/models/RetailerStockItem.js';
 import sequelize from '../../../database/db.js';
 
 // ------------------------------
@@ -8,10 +9,10 @@ import sequelize from '../../../database/db.js';
 // ------------------------------
 export const getInventorySummary = async (req, res) => {
   try {
-    const distributor_id = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
     const { search, category, status, schedule, rack_no } = req.query;
 
-    const where = { distributor_id: distributor_id };
+    const where = { retailer_id: retailer_id };
 
     if (search) {
       const s = search.trim();
@@ -21,7 +22,6 @@ export const getInventorySummary = async (req, res) => {
         { batch_number: { [Op.iLike]: `%${s}%` } }
       ];
       
-      // Add rack_no to search if no specific rack filter
       if (rack_no === undefined || rack_no === '') {
         where[Op.or].push({ rack_no: { [Op.iLike]: `%${s}%` } });
       }
@@ -40,22 +40,20 @@ export const getInventorySummary = async (req, res) => {
       }
     }
     
-    // Schedule filter - FIXED for ENUM column
     if (schedule && schedule !== 'all' && schedule !== '') {
-      where.schedule = { [Op.eq]: schedule }; // Use exact match for ENUM
+      where.schedule = { [Op.eq]: schedule };
     }
     
-    // Rack_no filter
     if (rack_no && rack_no.trim() !== '') {
       where.rack_no = { [Op.iLike]: `%${rack_no.trim()}%` };
     }
 
-    const totalProducts = await DistributorStockItem.count({
+    const totalProducts = await RetailerStockItem.count({
       include: [{ model: Product, as: 'Product' }],
       where,
     });
 
-    const lowStockItems = await DistributorStockItem.count({
+    const lowStockItems = await RetailerStockItem.count({
       include: [{ model: Product, as: 'Product' }],
       where: { ...where, status: 'Low Stock' }
     });
@@ -63,7 +61,7 @@ export const getInventorySummary = async (req, res) => {
     const threeMonthsFromNow = new Date();
     threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
 
-    const expiringSoon = await DistributorStockItem.count({
+    const expiringSoon = await RetailerStockItem.count({
       include: [{ model: Product, as: 'Product' }],
       where: {
         ...where,
@@ -72,8 +70,7 @@ export const getInventorySummary = async (req, res) => {
       }
     });
 
-    // Fixed total value
-    const result = await DistributorStockItem.findAll({
+    const result = await RetailerStockItem.findAll({
       attributes: [[fn("SUM", literal("ptr * current_stock")), "total_value"]],
       include: [{ model: Product, as: "Product", attributes: [] }],
       where: { ...where, is_expired: false },
@@ -99,7 +96,7 @@ export const getInventorySummary = async (req, res) => {
 // ------------------------------
 export const addBulkStock = async (req, res) => {
   try {
-    const distributor_id = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
     const { stockItems } = req.body;
 
     if (!Array.isArray(stockItems) || stockItems.length === 0) {
@@ -136,8 +133,8 @@ export const addBulkStock = async (req, res) => {
         const schedule = item.schedule || 'None';
         const rack_no = item.rack_no || null;
 
-        const newStockItem = await DistributorStockItem.create({
-          distributor_id,
+        const newStockItem = await RetailerStockItem.create({
+          retailer_id,
           product_code: product.product_code,
           batch_number,
           manufacturing_date: item.manufacturing_date ? new Date(item.manufacturing_date) : null,
@@ -177,7 +174,7 @@ export const addBulkStock = async (req, res) => {
 // ------------------------------
 export const updateStock = async (req, res) => {
   try {
-    const distributorId = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
     const { stockId } = req.params;
     const {
       product_code,
@@ -194,8 +191,8 @@ export const updateStock = async (req, res) => {
       rack_no
     } = req.body;
 
-    const item = await DistributorStockItem.findOne({
-      where: { stock_id: stockId, distributor_id: distributorId }
+    const item = await RetailerStockItem.findOne({
+      where: { stock_id: stockId, retailer_id: retailer_id }
     });
     if (!item) return res.status(404).json({ message: 'Stock item not found' });
 
@@ -239,11 +236,11 @@ export const updateStock = async (req, res) => {
 // ------------------------------
 export const deleteStock = async (req, res) => {
   try {
-    const distributor_id = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
     const { stockId } = req.params;
 
-    const item = await DistributorStockItem.findOne({
-      where: { stock_id: stockId, distributor_id }
+    const item = await RetailerStockItem.findOne({
+      where: { stock_id: stockId, retailer_id }
     });
 
     if (!item) return res.status(404).json({ message: 'Stock item not found' });
@@ -262,11 +259,11 @@ export const deleteStock = async (req, res) => {
 export const getStockDetails = async (req, res) => {
   try {
     const { productCode } = req.params;
-    const distributor_id = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
 
-    const stockItems = await DistributorStockItem.findAll({
+    const stockItems = await RetailerStockItem.findAll({
       include: [{ model: Product, as: 'Product' }],
-      where: { product_code: productCode, distributor_id },
+      where: { product_code: productCode, retailer_id },
       order: [['manufacturing_date', 'ASC']]
     });
 
@@ -278,16 +275,15 @@ export const getStockDetails = async (req, res) => {
 };
 
 // ------------------------------
-// GET STOCK ITEMS WITH FILTERS/SEARCH - UPDATED
+// GET STOCK ITEMS WITH FILTERS/SEARCH
 // ------------------------------
 export const getStockItems = async (req, res) => {
   try {
-    const distributor_id = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
     const { search, category, status, schedule, rack_no, sortBy = 'created_at', order = 'DESC', limit = 10, offset = 0 } = req.query;
 
-    const whereConditions = { distributor_id: distributor_id };
+    const whereConditions = { retailer_id: retailer_id };
 
-    // Handle search across multiple fields
     if (search && search.trim() !== '') {
       const searchTerm = search.trim();
       whereConditions[Op.or] = [
@@ -298,12 +294,10 @@ export const getStockItems = async (req, res) => {
       ];
     }
 
-    // Category filter
     if (category && category !== 'undefined' && category !== 'all') {
       whereConditions['$Product.category$'] = category;
     }
 
-    // Status filter
     if (status && status !== 'undefined' && status !== 'all') {
       if (status === 'Expired') {
         whereConditions.expiry_date = { [Op.lt]: new Date() };
@@ -313,17 +307,15 @@ export const getStockItems = async (req, res) => {
       }
     }
 
-    // Schedule filter - FIXED for ENUM column
     if (schedule && schedule !== 'undefined' && schedule !== 'all' && schedule.trim() !== '') {
-      whereConditions.schedule = { [Op.eq]: schedule }; // Use exact match for ENUM
+      whereConditions.schedule = { [Op.eq]: schedule };
     }
 
-    // Rack_no filter - Fixed to handle empty values properly
     if (rack_no && rack_no !== 'undefined' && rack_no.trim() !== '') {
       whereConditions.rack_no = { [Op.iLike]: `%${rack_no.trim()}%` };
     }
 
-    const { count, rows } = await DistributorStockItem.findAndCountAll({
+    const { count, rows } = await RetailerStockItem.findAndCountAll({
       include: [{
         model: Product,
         as: 'Product',
@@ -337,13 +329,13 @@ export const getStockItems = async (req, res) => {
       offset: parseInt(offset),
       order: [[sortBy, order]],
       attributes: [
-        'stock_id', 'distributor_id', 'product_code', 'batch_number', 'manufacturing_date',
+        'stock_id', 'retailer_id', 'product_code', 'batch_number', 'manufacturing_date',
         'expiry_date', 'quantity', 'minimum_stock', 'ptr', 'pts',
         'tax_rate', 'current_stock', 'is_expired', 'is_critical', 'status',
         'schedule', 'rack_no', 'created_at', 'updated_at'
       ]
     });
-
+    
     const formattedStockItems = rows.map(item => ({
       ...item.get({ plain: true }),
       ptr: Number(item.ptr),
@@ -355,11 +347,10 @@ export const getStockItems = async (req, res) => {
       }
     }));
 
-    // Get all categories from distributor's stock
     const categoriesResult = await Product.findAll({
       include: [{ 
-        model: DistributorStockItem,
-        where: { distributor_id: distributor_id },
+        model: RetailerStockItem,
+        where: { retailer_id: retailer_id },
         attributes: []
       }],
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
@@ -368,15 +359,14 @@ export const getStockItems = async (req, res) => {
 
     const categories = [...new Set(categoriesResult.map(c => c.category).filter(Boolean))];
 
-    // Get all unique rack numbers and schedules for filters
-    const rackNumbers = await DistributorStockItem.findAll({
-      where: { distributor_id: distributor_id },
+    const rackNumbers = await RetailerStockItem.findAll({
+      where: { retailer_id: retailer_id },
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('rack_no')), 'rack_no']],
       raw: true
     });
 
-    const schedules = await DistributorStockItem.findAll({
-      where: { distributor_id: distributor_id },
+    const schedules = await RetailerStockItem.findAll({
+      where: { retailer_id: retailer_id },
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('schedule')), 'schedule']],
       raw: true
     });
@@ -394,87 +384,6 @@ export const getStockItems = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching stock items:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-// ------------------------------
-// GET INITIAL STOCK ITEMS (without filters) - NEW FUNCTION
-// ------------------------------
-export const getInitialStockItems = async (req, res) => {
-  try {
-    const distributor_id = req.user.distributor_id;
-    const { sortBy = 'created_at', order = 'DESC', limit = 10, offset = 0 } = req.query;
-
-    const { count, rows } = await DistributorStockItem.findAndCountAll({
-      include: [{
-        model: Product,
-        as: 'Product',
-        attributes: [
-          'product_code', 'generic_name', 'unit_size',
-          'mrp', 'hsn_code', 'category'
-        ]
-      }],
-      where: { distributor_id: distributor_id },
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      order: [[sortBy, order]],
-      attributes: [
-        'stock_id', 'distributor_id', 'product_code', 'batch_number', 'manufacturing_date',
-        'expiry_date', 'quantity', 'minimum_stock', 'ptr', 'pts',
-        'tax_rate', 'current_stock', 'is_expired', 'is_critical', 'status',
-        'schedule', 'rack_no', 'created_at', 'updated_at'
-      ]
-    });
-
-    const formattedStockItems = rows.map(item => ({
-      ...item.get({ plain: true }),
-      ptr: Number(item.ptr),
-      pts: Number(item.pts),
-      tax_rate: Number(item.tax_rate),
-      product_details: {
-        ...item.Product.get({ plain: true }),
-        mrp: Number(item.Product?.mrp || 0)
-      }
-    }));
-
-    // Get all categories, rack numbers and schedules for filters
-    const categoriesResult = await Product.findAll({
-      include: [{ 
-        model: DistributorStockItem,
-        where: { distributor_id: distributor_id },
-        attributes: []
-      }],
-      attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
-      raw: true
-    });
-
-    const rackNumbers = await DistributorStockItem.findAll({
-      where: { distributor_id: distributor_id },
-      attributes: [[sequelize.fn('DISTINCT', sequelize.col('rack_no')), 'rack_no']],
-      raw: true
-    });
-
-    const schedules = await DistributorStockItem.findAll({
-      where: { distributor_id: distributor_id },
-      attributes: [[sequelize.fn('DISTINCT', sequelize.col('schedule')), 'schedule']],
-      raw: true
-    });
-
-    const categories = [...new Set(categoriesResult.map(c => c.category).filter(Boolean))];
-    const rackNos = rackNumbers.map(r => r.rack_no).filter(Boolean);
-    const scheduleList = schedules.map(s => s.schedule).filter(Boolean);
-
-    res.json({
-      total: count,
-      data: formattedStockItems,
-      categories: categories,
-      rack_nos: rackNos,
-      schedules: scheduleList
-    });
-
-  } catch (error) {
-    console.error('Error fetching initial stock items:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -508,10 +417,10 @@ export const getProducts = async (req, res) => {
 export const getProductBatches = async (req, res) => {
   try {
     const { product_code } = req.params;
-    const distributor_id = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
 
-    const batches = await DistributorStockItem.findAll({
-      where: { product_code, distributor_id },
+    const batches = await RetailerStockItem.findAll({
+      where: { product_code, retailer_id },
       attributes: [
         'stock_id',
         'batch_number',
@@ -543,7 +452,7 @@ export const getProductBatches = async (req, res) => {
 // ------------------------------
 export const importProducts = async (req, res) => {
   try {
-    const distributor_id = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
     const { products } = req.body;
 
     if (!Array.isArray(products) || products.length === 0) {
@@ -573,8 +482,8 @@ export const importProducts = async (req, res) => {
         const schedule = productData.schedule || 'None';
         const rack_no = productData.rack_no || null;
 
-        const stockItem = await DistributorStockItem.create({
-          distributor_id,
+        const stockItem = await RetailerStockItem.create({
+          retailer_id,
           product_code: product.product_code,
           batch_number: productData.batch_number,
           manufacturing_date: new Date(productData.manufacturing_date),
@@ -610,11 +519,11 @@ export const importProducts = async (req, res) => {
 // ------------------------------
 export const exportProducts = async (req, res) => {
   try {
-    const distributor_id = req.user.distributor_id;
+    const retailer_id = req.user.retailer_id;
 
-    const stockItems = await DistributorStockItem.findAll({
+    const stockItems = await RetailerStockItem.findAll({
       include: [{ model: Product, as: 'Product', attributes: ['product_code','generic_name','unit_size','mrp','hsn_code','category'] }],
-      where: { distributor_id },
+      where: { retailer_id },
       attributes: ['stock_id','product_code','batch_number','manufacturing_date','expiry_date','quantity','minimum_stock','ptr','pts','tax_rate','current_stock','is_expired','is_critical','status','schedule','rack_no']
     });
 

@@ -1,4 +1,4 @@
-// src/pages/Inventory.jsx
+// Updated src/pages/Inventory.jsx
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useGetProductsQuery } from '../services/inventoryApi';
+import { List } from 'lucide-react';
+import { format } from 'date-fns';
 import {
   Plus,
   Search,
@@ -22,7 +24,9 @@ import {
   TrendingDown,
   Filter,
   FileText,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   Dialog,
@@ -49,10 +53,9 @@ import {
   useImportProductsMutation,
   useGetInventorySummaryQuery
 } from '../services/inventoryApi';
-import { useRef} from "react";
+import { useRef } from "react";
 // Import the new ProductRow component
 import ProductRow from '../components/ui/ProductRow';
-
 // Import components for searchable dropdown
 import {
   Command,
@@ -67,7 +70,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../components/ui/popover";
-
 import {
   ToastProvider,
   Toast,
@@ -77,13 +79,14 @@ import {
   ToastViewport,
 } from "../components/ui/toast";
 
-
 const Inventory = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
-  const [showAddStock, setShowAddStock] = useState(false);
+  const [scheduleFilter, setScheduleFilter] = useState('all'); // Added schedule filter
+  const [rackFilter, setRackFilter] = useState(''); // Added rack filter
+  const [showAddStock, setShowAddStock] = useState(false); // This will control showing/hiding the bulk add form
   const [showEditStock, setShowEditStock] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -92,99 +95,94 @@ const Inventory = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState({ open: false, title: "", description: "", variant: "default" });
   const inputRefs = useRef([]);
-
   // State for searchable dropdown
   const [openProductDropdown, setOpenProductDropdown] = useState(false);
-// To track which dropdown is open:
-const [openDropdownIndex, setOpenDropdownIndex] = useState(null);
+  // To track which dropdown is open:
+  const [openDropdownIndex, setOpenDropdownIndex] = useState(null);
+
   // API Queries
   const { data: stockData, isLoading: isStockLoading, refetch } = useGetStockItemsQuery({
     search: searchTerm,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     status: stockFilter !== 'all' && stockFilter !== 'Expired' ? stockFilter : undefined,
+    schedule: scheduleFilter !== 'all' ? scheduleFilter : undefined,
+    rack_no: rackFilter || undefined,
     limit: itemsPerPage,
     offset: (currentPage - 1) * itemsPerPage,
   });
-const columns = [
-  "product_code",
-  "batch_number",
-  "manufacturing_date",
-  "expiry_date",
-  "quantity",
-  "minimum_stock",
-  "ptr",
-  "pts",
-  "tax_rate",
-];
 
-// Update the handleKeyDown function
-const handleKeyDown = (e, rowIndex, column) => {
-  const colIndex = columns.indexOf(column);
-  const nextRowIndex = rowIndex + 1;
-  const prevRowIndex = rowIndex - 1;
+  const columns = [
+    "product_code",
+    "batch_number",
+    "manufacturing_date",
+    "expiry_date",
+    "quantity",
+    "minimum_stock",
+    "ptr",
+    "pts",
+    "tax_rate",
+    "schedule",  // Added
+    "rack_no"   // Added
+  ];
 
-  switch (e.key) {
-    case "Enter":
-      e.preventDefault();
-      if (colIndex === columns.length - 1) {
-        // Last column → jump to next row first column
-        if (nextRowIndex >= bulkStockForm.length) {
-          addNewRow(); // Add new row if at last
+  // Update the handleKeyDown function
+  const handleKeyDown = (e, rowIndex, column) => {
+    const colIndex = columns.indexOf(column);
+    const nextRowIndex = rowIndex + 1;
+    const prevRowIndex = rowIndex - 1;
+    switch (e.key) {
+      case "Enter":
+        e.preventDefault();
+        if (colIndex === columns.length - 1) {
+          // Last column → jump to next row first column
+          if (nextRowIndex >= bulkStockForm.length) {
+            addNewRow(); // Add new row if at last
+          } else {
+            const nextInputKey = `${nextRowIndex}-product_code`;
+            setTimeout(() => inputRefs.current[nextInputKey]?.focus(), 0);
+          }
         } else {
-          const nextInputKey = `${nextRowIndex}-product_code`;
+          const nextCol = columns[colIndex + 1];
+          const nextInputKey = `${rowIndex}-${nextCol}`;
           setTimeout(() => inputRefs.current[nextInputKey]?.focus(), 0);
         }
-      } else {
-        const nextCol = columns[colIndex + 1];
-        const nextInputKey = `${rowIndex}-${nextCol}`;
-        setTimeout(() => inputRefs.current[nextInputKey]?.focus(), 0);
-      }
-      break;
-
-    case "ArrowRight":
-      e.preventDefault();
-      if (colIndex < columns.length - 1) {
-        const nextCol = columns[colIndex + 1];
-        const nextInputKey = `${rowIndex}-${nextCol}`;
-        inputRefs.current[nextInputKey]?.focus();
-      }
-      break;
-
-    case "ArrowLeft":
-      e.preventDefault();
-      if (colIndex > 0) {
-        const prevCol = columns[colIndex - 1];
-        const prevInputKey = `${rowIndex}-${prevCol}`;
-        inputRefs.current[prevInputKey]?.focus();
-      }
-      break;
-
-    case "ArrowDown":
-      e.preventDefault();
-      if (nextRowIndex < bulkStockForm.length) {
-        const nextInputKey = `${nextRowIndex}-${column}`;
-        inputRefs.current[nextInputKey]?.focus();
-      } else {
-        addNewRow(); // Add new row if at last
-      }
-      break;
-
-    case "ArrowUp":
-      e.preventDefault();
-      if (prevRowIndex >= 0) {
-        const prevInputKey = `${prevRowIndex}-${column}`;
-        inputRefs.current[prevInputKey]?.focus();
-      }
-      break;
-
-    default:
-      break;
-  }
-};
-
-
-
-
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        if (colIndex < columns.length - 1) {
+          const nextCol = columns[colIndex + 1];
+          const nextInputKey = `${rowIndex}-${nextCol}`;
+          inputRefs.current[nextInputKey]?.focus();
+        }
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        if (colIndex > 0) {
+          const prevCol = columns[colIndex - 1];
+          const prevInputKey = `${rowIndex}-${prevCol}`;
+          inputRefs.current[prevInputKey]?.focus();
+        }
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        if (nextRowIndex < bulkStockForm.length) {
+          const nextInputKey = `${nextRowIndex}-${column}`;
+          inputRefs.current[nextInputKey]?.focus();
+        } else {
+          addNewRow(); // Add new row if at last
+        }
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        if (prevRowIndex >= 0) {
+          const prevInputKey = `${prevRowIndex}-${column}`;
+          inputRefs.current[prevInputKey]?.focus();
+        }
+        break;
+      default:
+        break;
+    }
+  };
 
   // Calculate totalPages from total count from API
   const totalPages = Math.ceil((stockData?.total || 0) / itemsPerPage);
@@ -204,6 +202,8 @@ const handleKeyDown = (e, rowIndex, column) => {
     ptr: '',
     pts: '',
     tax_rate: 0,
+    schedule: 'None',  // Added
+    rack_no: ''       // Added
   });
 
   // Call refetch when currentPage changes to fetch new page data
@@ -227,11 +227,11 @@ const handleKeyDown = (e, rowIndex, column) => {
       });
   }, [navigate]);
 
-  // Open Add Stock dialog if navigated from dashboard
+  // Open Add Stock if navigated from dashboard
   const location = useLocation();
   useEffect(() => {
     if (location.state?.showBulkAddStock) {
-      setShowBulkAddStock(true);
+      setShowAddStock(true); // Show the form below instead of dialog
       // Clear the state so it doesn't reopen on reload
       navigate('/inventory', { replace: true });
     }
@@ -280,9 +280,11 @@ const handleKeyDown = (e, rowIndex, column) => {
     search: searchTerm,
     category: categoryFilter !== 'all' ? categoryFilter : undefined,
     status: stockFilter !== 'all' && stockFilter !== 'Expired' ? stockFilter : undefined,
+    schedule: scheduleFilter !== 'all' ? scheduleFilter : undefined,
+    rack_no: rackFilter || undefined,
   });
 
-  const [showBulkAddStock, setShowBulkAddStock] = useState(false);
+  // For bulk add stock form
   const [bulkStockForm, setBulkStockForm] = useState(
     Array(10).fill().map(() => ({
       product_code: '',
@@ -294,50 +296,52 @@ const handleKeyDown = (e, rowIndex, column) => {
       ptr: '',
       pts: '',
       tax_rate: '',
+      rack_no: '', // Added rack_no field
     }))
   );
 
   // Add the mutation hook
   const [addBulkStock] = useAddBulkStockMutation();
 
+  // Global schedule for all rows in bulk add form
+  const [globalSchedule, setGlobalSchedule] = useState('None');
+
   // Handler for adding a new row
- const [lastAddedRow, setLastAddedRow] = useState(null);
+  const [lastAddedRow, setLastAddedRow] = useState(null);
+  const addNewRow = () => {
+    setBulkStockForm(prev => {
+      const newForm = [
+        ...prev,
+        {
+          product_code: '',
+          batch_number: '',
+          manufacturing_date: '',
+          expiry_date: '',
+          quantity: '',
+          minimum_stock: '',
+          ptr: '',
+          pts: '',
+          tax_rate: 0,
+          rack_no: '', // Added rack_no field
+        },
+      ];
+      setLastAddedRow(newForm.length - 1); // Correct index of new row
+      return newForm;
+    });
+  };
 
-const addNewRow = () => {
-  setBulkStockForm(prev => {
-    const newForm = [
-      ...prev,
-      {
-        product_code: '',
-        batch_number: '',
-        manufacturing_date: '',
-        expiry_date: '',
-        quantity: '',
-        minimum_stock: '',
-        ptr: '',
-        pts: '',
-        tax_rate: 0,
-      },
-    ];
-    setLastAddedRow(newForm.length - 1); // Correct index of new row
-    return newForm;
-  });
-};
-
-useEffect(() => {
-  if (lastAddedRow !== null) {
-    // Wait a bit for the DOM to update
-    setTimeout(() => {
-      const key = `${lastAddedRow}-product_code`;
-      if (inputRefs.current[key]) {
-        inputRefs.current[key].focus();
-        setLastAddedRow(null);
-      }
-    }, 50);
-  }
-}, [bulkStockForm, lastAddedRow]);
-
-
+  useEffect(() => {
+    if (lastAddedRow !== null) {
+      // Wait a bit for the DOM to update
+      setTimeout(() => {
+        const key = `${lastAddedRow}-product_code`;
+        if (inputRefs.current[key]) {
+          inputRefs.current[key].focus();
+          setLastAddedRow(null);
+        }
+      }, 50);
+    }
+  }, [bulkStockForm, lastAddedRow]);
 
   // Helper function to check if a row is complete
   const isRowComplete = (row) => {
@@ -346,8 +350,7 @@ useEffect(() => {
       row.expiry_date.trim() !== '' &&
       row.quantity.trim() !== '' &&
       row.ptr.trim() !== '' &&
-      row.pts.trim() !== '' &&
-      row.tax_rate.trim() !== '';
+      row.pts.trim() !== '';
   };
 
   // Helper function to check if a row is partially filled (will cause error)
@@ -357,8 +360,7 @@ useEffect(() => {
         !row.expiry_date.trim() ||
         !row.quantity.trim() ||
         !row.ptr.trim() ||
-        !row.pts.trim() ||
-        !row.tax_rate.trim());
+        !row.pts.trim());
   };
 
   // Handler for removing a row
@@ -416,11 +418,16 @@ useEffect(() => {
           description: "Please fill at least one complete row with all required information",
           variant: "destructive",
         });
-
         return;
       }
 
-      const result = await addBulkStock(itemsToProcess).unwrap();
+      // Apply the global schedule to all items
+      const processedItems = itemsToProcess.map(item => ({
+        ...item,
+        schedule: globalSchedule
+      }));
+
+      const result = await addBulkStock(processedItems).unwrap();
       if (result.errors && result.errors.length > 0) {
         setToast({
           open: true,
@@ -428,7 +435,6 @@ useEffect(() => {
           description: `Added ${result.success.length} items with ${result.errors.length} errors. Check console for details.`,
           variant: "default",
         });
-
         console.error('Bulk add errors:', result.errors);
       } else {
         setToast({
@@ -437,9 +443,9 @@ useEffect(() => {
           description: `Successfully added ${result.success.length} stock items`,
           variant: "default",
         });
-
       }
-      setShowBulkAddStock(false);
+
+      // Reset form after successful submission
       setBulkStockForm(
         Array(10).fill().map(() => ({
           product_code: '',
@@ -451,6 +457,7 @@ useEffect(() => {
           ptr: '',
           pts: '',
           tax_rate: '',
+          rack_no: '',
         }))
       );
       refetch();
@@ -462,7 +469,6 @@ useEffect(() => {
         description: "Failed to add stock. Please try again.",
         variant: "destructive",
       });
-
     }
   };
 
@@ -480,6 +486,8 @@ useEffect(() => {
       pts: item.pts.toString(),
       tax_rate: item.tax_rate.toString(),
       mrp: item.Product?.mrp?.toString() || '',
+      schedule: item.schedule || 'None',  // Added
+      rack_no: item.rack_no || ''        // Added
     });
     setShowEditStock(true);
   };
@@ -497,7 +505,6 @@ useEffect(() => {
         tax_rate: parseFloat(stockForm.tax_rate),
         mrp: parseFloat(stockForm.mrp),
       }).unwrap();
-
       setShowEditStock(false);
       setEditingItem(null);
       setStockForm({
@@ -511,6 +518,8 @@ useEffect(() => {
         ptr: '',
         pts: '',
         tax_rate: 0,
+        schedule: 'None',
+        rack_no: ''
       });
       refetch(); // Refresh data
     } catch (err) {
@@ -610,9 +619,12 @@ useEffect(() => {
       !term ||
       item.Product?.generic_name?.toLowerCase().includes(term) ||
       item.Product?.product_code?.toLowerCase().includes(term) ||
-      item.batch_number?.toLowerCase().includes(term)
+      item.batch_number?.toLowerCase().includes(term) ||
+      (item.rack_no && item.rack_no.toLowerCase().includes(term))
     );
+
     const matchesCategory = categoryFilter === 'all' || item.Product?.category === categoryFilter;
+
     const matchesStockFilter = (() => {
       if (stockFilter === 'all') return true;
       if (stockFilter === 'Expired') return isExpired(item.expiry_date);
@@ -620,7 +632,22 @@ useEffect(() => {
       return item.status === stockFilter && !isExpired(item.expiry_date);
     })();
 
-    if (matchesSearch && matchesCategory && matchesStockFilter) {
+    // Fix for schedule filtering - handle "Schedule X" specifically
+    const matchesScheduleFilter = (() => {
+      if (scheduleFilter === 'all') return true;
+      if (scheduleFilter === 'Schedule X') {
+        return item.schedule === 'Schedule X';
+      }
+      return item.schedule === scheduleFilter;
+    })();
+
+    // Fix for rack_no filtering
+    const matchesRackFilter = (() => {
+      if (!rackFilter) return true;
+      return item.rack_no && item.rack_no.includes(rackFilter);
+    })();
+
+    if (matchesSearch && matchesCategory && matchesStockFilter && matchesScheduleFilter && matchesRackFilter) {
       if (!acc[productCode]) {
         acc[productCode] = {
           product: item.Product,
@@ -664,267 +691,22 @@ useEffect(() => {
             <Download className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
-          <Button variant="medical" onClick={() => setShowBulkAddStock(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Stock
+          <Button 
+            variant="medical" 
+            onClick={() => setShowAddStock(!showAddStock)}  // Toggle between stock list and add form
+          >
+            {showAddStock ? (
+              <>
+                <List className="w-4 h-4 mr-2" />
+                View Stock
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Stock
+              </>
+            )}
           </Button>
-          <Dialog open={showBulkAddStock} onOpenChange={setShowBulkAddStock}>
-            <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Bulk Add Stock</DialogTitle>
-                <DialogDescription>
-                  Add multiple stock items at once. Fill at least the required fields (marked with *).
-                  Rows with incomplete required fields will be skipped.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleBulkAddStock} className="space-y-4">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-muted">
-                        <th className="w-48 p-2 text-left border">Product *</th>
-                        <th className="w-32 p-2 text-left border">Batch No *</th>
-                        <th className="w-32 p-2 text-left border">Mfg Date</th>
-                        <th className="w-32 p-2 text-left border">Expiry Date *</th>
-                        <th className="w-24 p-2 text-left border">Quantity *</th>
-                        <th className="w-24 p-2 text-left border">Min Stock</th>
-                        <th className="w-24 p-2 text-left border">PTR *</th>
-                        <th className="w-24 p-2 text-left border">PTS *</th>
-                        <th className="w-20 p-2 text-left border">Tax %</th>
-                        <th className="w-16 p-2 text-left border">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-  {bulkStockForm.map((row, index) => (
-    <tr
-      key={index}
-      className={
-        isRowComplete(row) ? 'bg-green-50' :
-          isRowPartial(row) ? 'bg-yellow-50' :
-            row.product_code ? 'bg-blue-50' : ''
-      }
-    >
-      <td className="p-1 border">
-        <Popover 
-  open={openDropdownIndex === index} 
-  onOpenChange={(open) => {
-    if (open) {
-      setOpenDropdownIndex(index);
-    } else {
-      setOpenDropdownIndex(null);
-    }
-  }}
->
-  <PopoverTrigger asChild>
-    <Button
-      variant="outline"
-      role="combobox"
-      className="justify-between w-full h-8 text-xs"
-    >
-      {row.product_code
-        ? products.find((p) => p.product_code === row.product_code)?.generic_name
-        : "Select product..."}
-      <ChevronsUpDown className="w-3 h-3 ml-2 opacity-50 shrink-0" />
-    </Button>
-  </PopoverTrigger>
-  <PopoverContent className="w-full p-0">
-    <Command>
-      <CommandInput placeholder="Search products..." />
-      <CommandList>
-        <CommandEmpty>No product found.</CommandEmpty>
-        <CommandGroup>
-          {products.map((p) => (
-            <CommandItem
-              key={p.product_code}
-              value={`${p.product_code} ${p.generic_name} ${p.brand_name || ''}`}
-              onSelect={() => {
-                updateBulkField(index, 'product_code', p.product_code);
-                setOpenDropdownIndex(null); // Close the dropdown
-              }}
-            >
-              {p.product_code} - {p.generic_name} ({p.unit_size})
-            </CommandItem>
-          ))}
-        </CommandGroup>
-      </CommandList>
-    </Command>
-  </PopoverContent>
-</Popover>
-      </td>
-      <td className="p-1 border">
-        <Input
-          ref={(el) => (inputRefs.current[`${index}-batch_number`] = el)}
-          value={row.batch_number}
-          onChange={(e) => updateBulkField(index, 'batch_number', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, index, 'batch_number')}
-          placeholder="Batch No"
-          className="text-xs"
-        />
-      </td>
-      <td className="p-1 border">
-        <Input
-          ref={(el) => (inputRefs.current[`${index}-manufacturing_date`] = el)}
-          type="date"
-          value={row.manufacturing_date}
-          onChange={(e) => updateBulkField(index, 'manufacturing_date', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, index, 'manufacturing_date')}
-          className="text-xs"
-        />
-      </td>
-      <td className="p-1 border">
-        <Input
-          ref={(el) => (inputRefs.current[`${index}-expiry_date`] = el)}
-          type="date"
-          value={row.expiry_date}
-          onChange={(e) => updateBulkField(index, 'expiry_date', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, index, 'expiry_date')}
-          className="text-xs"
-        />
-      </td>
-      <td className="p-1 border">
-        <Input
-          ref={(el) => (inputRefs.current[`${index}-quantity`] = el)}
-          type="decimal"
-          value={row.quantity}
-          onChange={(e) => updateBulkField(index, 'quantity', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, index, 'quantity')}
-          placeholder="Qty"
-          className="text-xs"
-          min="0"
-        />
-      </td>
-      <td className="p-1 border">
-        <Input
-          ref={(el) => (inputRefs.current[`${index}-minimum_stock`] = el)}
-          type="decimal"
-          value={row.minimum_stock}
-          onChange={(e) => updateBulkField(index, 'minimum_stock', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, index, 'minimum_stock')}
-          placeholder="Min"
-          className="text-xs"
-          min="0"
-        />
-      </td>
-      <td className="p-1 border">
-        <Input
-          ref={(el) => (inputRefs.current[`${index}-ptr`] = el)}
-          type="decimal"
-          step="0.01"
-          value={row.ptr}
-          onChange={(e) => updateBulkField(index, 'ptr', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, index, 'ptr')}
-          placeholder="PTR"
-          className="text-xs"
-          min="0"
-        />
-      </td>
-      <td className="p-1 border">
-        <Input
-          ref={(el) => (inputRefs.current[`${index}-pts`] = el)}
-          type="decimal"
-          step="0.01"
-          value={row.pts}
-          onChange={(e) => updateBulkField(index, 'pts', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, index, 'pts')}
-          placeholder="PTS"
-          className="text-xs"
-          min="0"
-        />
-      </td>
-      <td className="p-1 border">
-        <Input
-          ref={(el) => (inputRefs.current[`${index}-tax_rate`] = el)}
-          type="decimal" 
-          step="0.01"
-          value={row.tax_rate}
-          onChange={(e) => updateBulkField(index, 'tax_rate', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, index, 'tax_rate')}
-          placeholder="%"
-          className="text-xs"
-          min="0"
-          max="100"
-        />
-      </td>
-      <td className="p-1 text-center border">
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          onClick={() => removeRow(index)}
-          disabled={bulkStockForm.length <= 1}
-          className="p-0 h-7 w-7"
-        >
-          <Trash2 className="w-3 h-3" />
-        </Button>
-      </td>
-    </tr>
-  ))}
-</tbody>
-                  </table>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    <p>• Rows with a selected product will be highlighted</p>
-                    <p>• Only complete rows (all required fields filled) will be processed</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="button" onClick={addNewRow} variant="outline" size="sm">
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Row
-                    </Button>
-                    <div className="flex items-center justify-between p-2 bg-gray-100 rounded">
-                      <div className="text-sm">
-                        <span className="flex items-center">
-                          <div className="w-3 h-3 mr-1 bg-green-500 rounded-full"></div>
-                          <span className="mr-3">Complete: {bulkStockForm.filter(isRowComplete).length}</span>
-                        </span>
-                        <span className="flex items-center">
-                          <div className="w-3 h-3 mr-1 bg-yellow-500 rounded-full"></div>
-                          <span className="mr-3">Incomplete: {bulkStockForm.filter(isRowPartial).length}</span>
-                        </span>
-                        <span className="flex items-center">
-                          <div className="w-3 h-3 mr-1 bg-blue-500 rounded-full"></div>
-                          <span>Product Only: {bulkStockForm.filter(row => row.product_code && !isRowPartial(row) && !isRowComplete(row)).length}</span>
-                        </span>
-                      </div>
-                      <div className="text-sm font-medium">
-                        Will process: {bulkStockForm.filter(isRowComplete).length} rows
-                      </div>
-                    </div>
-                    <Button type="button" variant="outline" size="sm" onClick={() => {
-                      setBulkStockForm(
-                        Array(10).fill().map(() => ({
-                          product_code: '',
-                          batch_number: '',
-                          manufacturing_date: '',
-                          expiry_date: '',
-                          quantity: '',
-                          minimum_stock: '',
-                          ptr: '',
-                          pts: '',
-                          tax_rate: '',
-                        }))
-                      );
-                    }}>
-                      Clear All
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-3 pt-2 border-t">
-                  <Button type="button" variant="outline" onClick={() => setShowBulkAddStock(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="medical"
-                    disabled={bulkStockForm.filter(isRowComplete).length === 0}
-                  >
-                    Add {bulkStockForm.filter(isRowComplete).length} Stock Items
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
@@ -986,96 +768,410 @@ useEffect(() => {
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 md:flex-row">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute w-4 h-4 left-3 top-3 text-muted-foreground" />
-                <Input
-                  placeholder="Search by product name, code, or batch..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="cursor-pointer">All Categories</SelectItem>
-                {categories.map(cat => (
-                  <SelectItem key={cat} value={cat} className="cursor-pointer">{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={stockFilter} onValueChange={setStockFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Stock Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="cursor-pointer">All Stock</SelectItem>
-                <SelectItem value="In Stock" className="cursor-pointer">In Stock</SelectItem>
-                <SelectItem value="Low Stock" className="cursor-pointer">Low Stock</SelectItem>
-                <SelectItem value="Critical" className="cursor-pointer">Critical</SelectItem>
-                <SelectItem value="Expired" className="cursor-pointer">Expired</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex gap-2">
-              <Button variant="outline" size="icon">
-                <Filter className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" onClick={handleExportCSV}>
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Inventory Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Stock Items</CardTitle>
-          <CardDescription>
-            Total {Object.keys(groupedItems).length || 0} products found
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-hidden border rounded-md">
-            <Table>
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead className="w-[300px]">Product</TableHead>
-                  <TableHead className="text-right">Batches</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(groupedItems).map(([productCode, groupData]) => (
-                  <ProductRow
-                    key={productCode}
-                    product={groupData.product}
-                    batches={groupData.batches}
-                    onEdit={handleEditStock}
-                    onDelete={handleDeleteStock}
+      {/* Filters - Only show when viewing stock, not when adding stock */}
+      {!showAddStock && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4 md:flex-row">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute w-4 h-4 left-3 top-3 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by product name, code, or batch..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
                   />
-                ))}
-                {Object.keys(groupedItems).length === 0 && (
+                </div>
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="cursor-pointer">All Categories</SelectItem>
+                  {categories.map(cat => (
+                    <SelectItem key={cat} value={cat} className="cursor-pointer">{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={stockFilter} onValueChange={setStockFilter}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Stock Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="cursor-pointer">All Stock</SelectItem>
+                  <SelectItem value="In Stock" className="cursor-pointer">In Stock</SelectItem>
+                  <SelectItem value="Low Stock" className="cursor-pointer">Low Stock</SelectItem>
+                  <SelectItem value="Critical" className="cursor-pointer">Critical</SelectItem>
+                  <SelectItem value="Expired" className="cursor-pointer">Expired</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={scheduleFilter} onValueChange={setScheduleFilter}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Schedule" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="cursor-pointer">All Schedules</SelectItem>
+                  <SelectItem value="None" className="cursor-pointer">None</SelectItem>
+                  <SelectItem value="Schedule H" className="cursor-pointer">Schedule H</SelectItem>
+                  <SelectItem value="Schedule H1" className="cursor-pointer">Schedule H1</SelectItem>
+                  <SelectItem value="Schedule G" className="cursor-pointer">Schedule G</SelectItem>
+                  <SelectItem value="Schedule C" className="cursor-pointer">Schedule C</SelectItem>
+                  <SelectItem value="Schedule C1" className="cursor-pointer">Schedule C1</SelectItem>
+                  <SelectItem value="Schedule F" className="cursor-pointer">Schedule F</SelectItem>
+                  <SelectItem value="Schedule J" className="cursor-pointer">Schedule J</SelectItem>
+                  <SelectItem value="Schedule K" className="cursor-pointer">Schedule K</SelectItem>
+                  <SelectItem value="Schedule X" className="cursor-pointer">Schedule X</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder="Rack No"
+                value={rackFilter}
+                onChange={(e) => setRackFilter(e.target.value)}
+                className="w-full md:w-[180px]"
+              />
+              
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Toggle between Stock List and Add Stock Form */}
+      {showAddStock ? (
+        /* Bulk Add Stock Form */
+        <Card>
+          <CardHeader>
+            <CardTitle>Bulk Add Stock</CardTitle>
+            <CardDescription>
+              Add multiple stock items at once. Fill at least the required fields (marked with *).
+              Rows with incomplete required fields will be skipped.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleBulkAddStock} className="space-y-4">
+              {/* Global Schedule Dropdown */}
+              <div className="mb-4">
+                <Label htmlFor="global-schedule">Schedule for All Items</Label>
+                <Select value={globalSchedule} onValueChange={setGlobalSchedule}>
+                  <SelectTrigger id="global-schedule" className="w-full">
+                    <SelectValue placeholder="Select Schedule" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="None">None</SelectItem>
+                    <SelectItem value="Schedule G">Schedule G</SelectItem>
+                    <SelectItem value="Schedule C">Schedule C</SelectItem>
+                    <SelectItem value="Schedule C1">Schedule C1</SelectItem>
+                    <SelectItem value="Schedule F">Schedule F</SelectItem>
+                    <SelectItem value="Schedule J">Schedule J</SelectItem>
+                    <SelectItem value="Schedule K">Schedule K</SelectItem>
+                    <SelectItem value="Schedule H">Schedule H</SelectItem>
+                    <SelectItem value="Schedule H1">Schedule H1</SelectItem>
+                    <SelectItem value="Schedule X">Schedule X</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-muted">
+                      <th className="w-48 p-2 text-left border">Product *</th>
+                      <th className="w-32 p-2 text-left border">Batch No *</th>
+                      <th className="w-32 p-2 text-left border">Mfg Date</th>
+                      <th className="w-32 p-2 text-left border">Expiry Date *</th>
+                      <th className="w-24 p-2 text-left border">Quantity *</th>
+                      <th className="w-24 p-2 text-left border">Min Stock</th>
+                      <th className="w-24 p-2 text-left border">PTR *</th>
+                      <th className="w-24 p-2 text-left border">PTS *</th>
+                      <th className="w-20 p-2 text-left border">Tax %</th>
+                      <th className="w-32 p-2 text-left border">Rack No</th>
+                      <th className="w-16 p-2 text-left border">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkStockForm.map((row, index) => (
+                      <tr
+                        key={index}
+                        className={
+                          isRowComplete(row) ? 'bg-green-50' :
+                            isRowPartial(row) ? 'bg-yellow-50' :
+                              row.product_code ? 'bg-blue-50' : ''
+                        }
+                      >
+                        <td className="p-1 border">
+                          <Popover 
+                            open={openDropdownIndex === index} 
+                            onOpenChange={(open) => {
+                              if (open) {
+                                setOpenDropdownIndex(index);
+                              } else {
+                                setOpenDropdownIndex(null);
+                              }
+                            }}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="justify-between w-full h-8 text-xs"
+                              >
+                                {row.product_code
+                                  ? products.find((p) => p.product_code === row.product_code)?.generic_name
+                                  : "Select product..."}
+                                <ChevronsUpDown className="w-3 h-3 ml-2 opacity-50 shrink-0" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-full p-0">
+                              <Command>
+                                <CommandInput placeholder="Search products..." />
+                                <CommandList>
+                                  <CommandEmpty>No product found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {products.map((p) => (
+                                      <CommandItem
+                                        key={p.product_code}
+                                        value={`${p.product_code} ${p.generic_name} ${p.brand_name || ''}`}
+                                        onSelect={() => {
+                                          updateBulkField(index, 'product_code', p.product_code);
+                                          setOpenDropdownIndex(null); // Close the dropdown
+                                        }}
+                                      >
+                                        {p.product_code} - {p.generic_name} ({p.unit_size})
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-batch_number`] = el)}
+                            value={row.batch_number}
+                            onChange={(e) => updateBulkField(index, 'batch_number', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'batch_number')}
+                            placeholder="Batch No"
+                            className="text-xs"
+                          />
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-manufacturing_date`] = el)}
+                            type="date"
+                            value={row.manufacturing_date}
+                            onChange={(e) => updateBulkField(index, 'manufacturing_date', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'manufacturing_date')}
+                            className="text-xs"
+                          />
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-expiry_date`] = el)}
+                            type="date"
+                            value={row.expiry_date}
+                            onChange={(e) => updateBulkField(index, 'expiry_date', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'expiry_date')}
+                            className="text-xs"
+                          />
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-quantity`] = el)}
+                            type="decimal"
+                            value={row.quantity}
+                            onChange={(e) => updateBulkField(index, 'quantity', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'quantity')}
+                            placeholder="Qty"
+                            className="text-xs"
+                            min="0"
+                          />
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-minimum_stock`] = el)}
+                            type="decimal"
+                            value={row.minimum_stock}
+                            onChange={(e) => updateBulkField(index, 'minimum_stock', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'minimum_stock')}
+                            placeholder="Min"
+                            className="text-xs"
+                            min="0"
+                          />
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-ptr`] = el)}
+                            type="decimal"
+                            step="0.01"
+                            value={row.ptr}
+                            onChange={(e) => updateBulkField(index, 'ptr', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'ptr')}
+                            placeholder="PTR"
+                            className="text-xs"
+                            min="0"
+                          />
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-pts`] = el)}
+                            type="decimal"
+                            step="0.01"
+                            value={row.pts}
+                            onChange={(e) => updateBulkField(index, 'pts', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'pts')}
+                            placeholder="PTS"
+                            className="text-xs"
+                            min="0"
+                          />
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-tax_rate`] = el)}
+                            type="decimal" 
+                            step="0.01"
+                            value={row.tax_rate}
+                            onChange={(e) => updateBulkField(index, 'tax_rate', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'tax_rate')}
+                            placeholder="%"
+                            className="text-xs"
+                            min="0"
+                            max="100"
+                          />
+                        </td>
+                        <td className="p-1 border">
+                          <Input
+                            ref={(el) => (inputRefs.current[`${index}-rack_no`] = el)}
+                            value={row.rack_no}
+                            onChange={(e) => updateBulkField(index, 'rack_no', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'rack_no')}
+                            placeholder="Rack No"
+                            className="text-xs"
+                          />
+                        </td>
+                        <td className="p-1 text-center border">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => removeRow(index)}
+                            disabled={bulkStockForm.length <= 1}
+                            className="p-0 h-7 w-7"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+                <div className="text-sm text-muted-foreground">
+                  <p>• Rows with a selected product will be highlighted</p>
+                  <p>• Only complete rows (all required fields filled) will be processed</p>
+                  <p>• Schedule is applied globally to all items</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" onClick={addNewRow} variant="outline" size="sm">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Row
+                  </Button>
+                  <div className="flex items-center justify-between p-2 bg-gray-100 rounded">
+                    <div className="text-sm">
+                      <span className="flex items-center">
+                        <div className="w-3 h-3 mr-1 bg-green-500 rounded-full"></div>
+                        <span className="mr-3">Complete: {bulkStockForm.filter(isRowComplete).length}</span>
+                      </span>
+                      <span className="flex items-center">
+                        <div className="w-3 h-3 mr-1 bg-yellow-500 rounded-full"></div>
+                        <span className="mr-3">Incomplete: {bulkStockForm.filter(isRowPartial).length}</span>
+                      </span>
+                      <span className="flex items-center">
+                        <div className="w-3 h-3 mr-1 bg-blue-500 rounded-full"></div>
+                        <span>Product Only: {bulkStockForm.filter(row => row.product_code && !isRowPartial(row) && !isRowComplete(row)).length}</span>
+                      </span>
+                    </div>
+                    <div className="text-sm font-medium">
+                      Will process: {bulkStockForm.filter(isRowComplete).length} rows
+                    </div>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => {
+                    setBulkStockForm(
+                      Array(10).fill().map(() => ({
+                        product_code: '',
+                        batch_number: '',
+                        manufacturing_date: '',
+                        expiry_date: '',
+                        quantity: '',
+                        minimum_stock: '',
+                        ptr: '',
+                        pts: '',
+                        tax_rate: '',
+                        rack_no: '',
+                      }))
+                    );
+                  }}>
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setShowAddStock(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="medical"
+                  disabled={bulkStockForm.filter(isRowComplete).length === 0}
+                >
+                  Add {bulkStockForm.filter(isRowComplete).length} Stock Items
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Inventory Table */
+        <Card>
+          <CardHeader>
+            <CardTitle>Stock Items</CardTitle>
+            <CardDescription>
+              Total {Object.keys(groupedItems).length || 0} products found
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-hidden border rounded-md">
+              <Table>
+                <TableHeader className="bg-gray-50">
                   <TableRow>
-                    <TableCell colSpan={2} className="py-4 text-center text-muted-foreground">
-                      No stock items found matching the filters.
-                    </TableCell>
+                    <TableHead className="w-[300px]">Product</TableHead>
+                    <TableHead className="text-right">Batches</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {Object.entries(groupedItems).map(([productCode, groupData]) => (
+                    <ProductRow
+                      key={productCode}
+                      product={groupData.product}
+                      batches={groupData.batches}
+                      onEdit={handleEditStock}
+                      onDelete={handleDeleteStock}
+                    />
+                  ))}
+                  {Object.keys(groupedItems).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={2} className="py-4 text-center text-muted-foreground">
+                        No stock items found matching the filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit Stock Dialog */}
       <Dialog open={showEditStock} onOpenChange={setShowEditStock}>
@@ -1091,42 +1187,42 @@ useEffect(() => {
               <div className="space-y-2">
                 <Label htmlFor="product_code">Product *</Label>
                 <Popover open={openProductDropdown} onOpenChange={setOpenProductDropdown}>
-  <PopoverTrigger asChild>
-    <Button
-      variant="outline"
-      role="combobox"
-      aria-expanded={openProductDropdown}
-      className="justify-between w-full"
-    >
-      {stockForm.product_code
-        ? products.find((p) => p.product_code === stockForm.product_code)?.generic_name
-        : "Select product..."}
-      <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50 shrink-0" />
-    </Button>
-  </PopoverTrigger>
-  <PopoverContent className="w-full p-0">
-    <Command>
-      <CommandInput placeholder="Search products..." />
-      <CommandList>
-        <CommandEmpty>No product found.</CommandEmpty>
-        <CommandGroup>
-          {products.map((p) => (
-            <CommandItem
-              key={p.product_code}
-              value={`${p.product_code} ${p.generic_name} ${p.brand_name || ''}`}
-              onSelect={() => {
-                setStockForm({ ...stockForm, product_code: p.product_code });
-                setOpenProductDropdown(false); // Close the dropdown
-              }}
-            >
-              {p.product_code} - {p.generic_name} ({p.unit_size})
-            </CommandItem>
-          ))}
-        </CommandGroup>
-      </CommandList>
-    </Command>
-  </PopoverContent>
-</Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openProductDropdown}
+                      className="justify-between w-full"
+                    >
+                      {stockForm.product_code
+                        ? products.find((p) => p.product_code === stockForm.product_code)?.generic_name
+                        : "Select product..."}
+                      <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search products..." />
+                      <CommandList>
+                        <CommandEmpty>No product found.</CommandEmpty>
+                        <CommandGroup>
+                          {products.map((p) => (
+                            <CommandItem
+                              key={p.product_code}
+                              value={`${p.product_code} ${p.generic_name} ${p.brand_name || ''}`}
+                              onSelect={() => {
+                                setStockForm({ ...stockForm, product_code: p.product_code });
+                                setOpenProductDropdown(false); // Close the dropdown
+                              }}
+                            >
+                              {p.product_code} - {p.generic_name} ({p.unit_size})
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit_batch_number">Batch No *</Label>
@@ -1227,6 +1323,41 @@ useEffect(() => {
                 />
               </div>
             </div>
+            {/* Added Schedule and Rack No fields */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit_schedule">Schedule</Label>
+                <Select
+                  value={stockForm.schedule}
+                  onValueChange={(value) => setStockForm({ ...stockForm, schedule: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Schedule" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="None">None</SelectItem>
+                    <SelectItem value="Schedule G">Schedule G</SelectItem>
+                    <SelectItem value="Schedule C">Schedule C</SelectItem>
+                    <SelectItem value="Schedule C1">Schedule C1</SelectItem>
+                    <SelectItem value="Schedule F">Schedule F</SelectItem>
+                    <SelectItem value="Schedule J">Schedule J</SelectItem>
+                    <SelectItem value="Schedule K">Schedule K</SelectItem>
+                    <SelectItem value="Schedule H">Schedule H</SelectItem>
+                    <SelectItem value="Schedule H1">Schedule H1</SelectItem>
+                    <SelectItem value="Schedule X">Schedule X</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_rack_no">Rack No</Label>
+                <Input
+                  id="edit_rack_no"
+                  value={stockForm.rack_no}
+                  onChange={(e) => setStockForm({ ...stockForm, rack_no: e.target.value })}
+                  placeholder="Rack Number"
+                />
+              </div>
+            </div>
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setShowEditStock(false)}>
                 Cancel
@@ -1258,7 +1389,7 @@ useEffect(() => {
                 required
               />
               <p className="text-sm text-muted-foreground">
-                CSV should have columns: product_code, generic_name, unit_size, mrp, hsn_code, category, batch_number, manufacturing_date, expiry_date, quantity, minimum_stock, ptr, pts, tax_rate
+                CSV should have columns: product_code, generic_name, unit_size, mrp, hsn_code, category, batch_number, manufacturing_date, expiry_date, quantity, minimum_stock, ptr, pts, tax_rate, schedule, rack_no
               </p>
             </div>
             <div className="flex justify-end gap-3 pt-4">
@@ -1299,6 +1430,7 @@ useEffect(() => {
           Next
         </Button>
       </div>
+
       <ToastProvider swipeDirection="right">
         {toast.open && (
           <Toast variant={toast.variant} open={toast.open} onOpenChange={(open) => setToast({ ...toast, open })}>
@@ -1311,7 +1443,6 @@ useEffect(() => {
         )}
         <ToastViewport />
       </ToastProvider>
-
     </div>
   );
 };
