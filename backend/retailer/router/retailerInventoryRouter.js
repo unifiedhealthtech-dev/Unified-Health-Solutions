@@ -9,7 +9,8 @@ import {
   getProducts,
   getProductBatches,
   importProducts,
-  exportProducts
+  exportProducts,
+
 } from '../controller/inventoryApi.js';
 import retailerAuth from '../middleware/authMiddleware.js';
 

@@ -11,6 +11,7 @@ import distributorPartyRouter from './distributor/router/distributorPartyRouter.
 import distributorNotificationRouter from './distributor/router/distributorNotificationRouter.js';
 import retailerNotificationRouter from './retailer/router/retailerNotificationRouter.js';
 import retailerInventoryRouter from './retailer/router/retailerInventoryRouter.js';
+import retailerOrdersRouter from './retailer/router/retailerOrdersRouter.js';
 
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -79,7 +80,7 @@ app.use('/api/retailer', retailerLoginRouter);
 app.use('/api/retailer/connections', retailerConnectionsRouter);
 app.use("/api/retailer/notifications", retailerNotificationRouter);
 app.use('/api/retailer/inventory', retailerInventoryRouter);
-
+app.use('/api/retailer/orders', retailerOrdersRouter);
 // ------------------ Global error handler ------------------
 app.use((err, req, res, next) => {
   console.error(err.stack);

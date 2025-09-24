@@ -61,6 +61,7 @@ const Distributor = sequelize.define('Distributor', {
   underscored: true,
 });
 
+
 // ✅ Associations
 DistributorUser.hasOne(Distributor, { foreignKey: 'distributor_id', as: 'Distributor' });
 Distributor.belongsTo(DistributorUser, { foreignKey: 'distributor_id', as: 'DistributorUser' });

@@ -566,3 +566,4 @@ function getStockStatus(currentStock, minimumStock) {
   if (currentStock <= minimumStock) return 'Low Stock';
   return 'In Stock';
 }
+
