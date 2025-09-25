@@ -6,13 +6,6 @@ export const retailerOrdersApi = createApi({
   baseQuery: fetchBaseQuery({
     baseUrl: 'http://localhost:5000/api/retailer/orders',
     credentials: 'include',
-    prepareHeaders: (headers, { getState }) => {
-      const token = getState().auth.token;
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
   }),
   tagTypes: ['Order', 'DistributorStock', 'OrderStats'],
   endpoints: (builder) => ({
@@ -74,6 +67,25 @@ export const retailerOrdersApi = createApi({
       query: () => '/statistics',
       providesTags: ['OrderStats'],
     }),
+    getDCItems: builder.query({
+      query: () => '/dc-items',
+      providesTags: ['DCItem'],
+    }),
+    createDCItem: builder.mutation({
+      query: (itemData) => ({
+        url: '/dc-items',
+        method: 'POST',
+        body: itemData,
+      }),
+      invalidatesTags: ['DCItem'],
+    }),
+    deleteDCItem: builder.mutation({
+      query: (id) => ({
+        url: `/dc-items/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['DCItem'],
+    }),
   }),
 });
 
@@ -86,4 +98,7 @@ export const {
   useGetOrderDetailsQuery,
   useCancelOrderMutation,
   useGetOrderStatisticsQuery,
+  useGetDCItemsQuery,
+  useCreateDCItemMutation,
+  useDeleteDCItemMutation,
 } = retailerOrdersApi;

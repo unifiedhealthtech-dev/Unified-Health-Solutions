@@ -7,6 +7,7 @@ import ConnectedDistributors from '../../../database/models/ConnectedDistributor
 import RetailerOrder from '../../../database/models/RetailerOrder.js';
 import RetailerOrderItem from '../../../database/models/RetailerOrderItem.js';
 import Notification from "../../../database/models/Notification.js";
+import RetailerDCItem from '../../../database/models/RetailerDCItem.js';
 
 // ✅ Get connected distributors for dropdown
 export const getConnectedDistributorsList = async (req, res) => {
@@ -88,16 +89,14 @@ export const searchMedicines = async (req, res) => {
     }
 
     // Add search conditions
-    whereConditions[Op.and] = [
-      { current_stock: { [Op.gt]: 0 } }, // Only show items with stock
-      {
-        [Op.or]: [
-          { '$Product.generic_name$': { [Op.iLike]: `%${search}%` } },
-          { '$Product.product_code$': { [Op.iLike]: `%${search}%` } }
-          // Removed brand_name and schedule as they don't exist in the Product model
-        ]
-      }
-    ];
+  whereConditions[Op.and] = [
+  {
+    [Op.or]: [
+      { '$Product.generic_name$': { [Op.iLike]: `%${search}%` } },
+      { '$Product.product_code$': { [Op.iLike]: `%${search}%` } }
+    ]
+  }
+];
 
     const medicines = await DistributorStockItem.findAll({
       include: [
@@ -677,5 +676,80 @@ export const getOrderStatistics = async (req, res) => {
   } catch (error) {
     console.error('Error fetching order statistics:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch statistics' });
+  }
+};
+
+
+// ✅ Get all D/C items for retailer
+export const getDCItems = async (req, res) => {
+  try {
+    const retailerId = req.user.retailer_id;
+    console.log(retailerId);
+    const items = await RetailerDCItem.findAll({
+      where: { retailer_id: retailerId },
+      order: [['created_at', 'DESC']]
+    });
+    res.json({ success: true, data: items });
+  } catch (error) {
+    console.error('Error fetching D/C items:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch D/C items' });
+  }
+};
+
+// ✅ Create new D/C item
+export const createDCItem = async (req, res) => {
+  try {
+    const retailerId = req.user.retailer_id;
+    
+    const {
+      product_code,
+      product_name,
+      batch_number,
+      quantity,
+      rate,
+      mrp,
+      tax_rate = 12,
+      distributor_name
+    } = req.body;
+
+    if (!product_code || !product_name || !distributor_name || !quantity || !rate || !mrp) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const newItem = await RetailerDCItem.create({
+      retailer_id: retailerId,
+      product_code,
+      product_name,
+      batch_number: batch_number || 'MANUAL',
+      quantity: parseInt(quantity),
+      rate: parseFloat(rate),
+      mrp: parseFloat(mrp),
+      tax_rate: parseFloat(tax_rate),
+      distributor_name
+    });
+
+    res.status(201).json({ success: true, data: newItem, message: 'D/C item added successfully' });
+  } catch (error) {
+    console.error('Error creating D/C item:', error);
+    res.status(500).json({ success: false, message: 'Failed to add D/C item' });
+  }
+};
+
+// ✅ Delete D/C item
+export const deleteDCItem = async (req, res) => {
+  try {
+    const retailerId = req.user.retailer_id;
+    const { id } = req.params;
+
+    const item = await RetailerDCItem.findOne({ where: { dc_item_id: id, retailer_id: retailerId } });
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'D/C item not found' });
+    }
+
+    await item.destroy();
+    res.json({ success: true, message: 'D/C item deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting D/C item:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete D/C item' });
   }
 };
