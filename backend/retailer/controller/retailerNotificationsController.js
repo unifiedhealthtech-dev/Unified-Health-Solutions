@@ -3,9 +3,9 @@ import Notification from "../../../database/models/Notification.js";
 
 export const getNotifications = async (req, res) => {
   try {
-    const { user_id, role } = req.user; // Assuming auth middleware sets this
+    const { retailer_id, role } = req.user; // Assuming auth middleware sets this
     const notifications = await Notification.findAll({
-      where: { user_id: user_id, role: role },
+      where: { user_id: retailer_id, role: role },
       order: [['created_at', 'DESC']],
     });
 
@@ -19,10 +19,10 @@ export const getNotifications = async (req, res) => {
 export const markAsRead = async (req, res) => {
   try {
     const { notificationId } = req.params;
-    const { user_id, role } = req.user;
+    const { retailer_id, role } = req.user;
 
     const notification = await Notification.findOne({
-      where: { notification_id: notificationId, user_id: user_id, role: role }
+      where: { notification_id: notificationId, user_id: retailer_id, role: role }
     });
 
     if (!notification) {
@@ -40,11 +40,11 @@ export const markAsRead = async (req, res) => {
 
 export const markAllAsRead = async (req, res) => {
   try {
-    const { user_id, role } = req.user;
+    const { retailer_id, role } = req.user;
 
     await Notification.update(
       { is_read: true },
-      { where: { user_id: user_id, role: role, is_read: false } }
+      { where: { user_id: retailer_id, role: role, is_read: false } }
     );
 
     res.json({ success: true, message: 'All notifications marked as read' });

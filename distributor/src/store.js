@@ -9,6 +9,7 @@ import { inventoryApi } from './services/inventoryApi';
 import {distributorConnectionsApi} from "./services/distributorConnectionsApi"
 import { partiesApi } from './services/partiesApi';
 import { notificationsApi } from './services/notificationsApi';
+import { distributorOrdersApi } from './services/distributorOrdersApi';
 
 const persistConfig = {
   key: 'root',
@@ -23,6 +24,7 @@ const rootReducer = combineReducers({
   [distributorConnectionsApi.reducerPath]: distributorConnectionsApi.reducer,
   [partiesApi.reducerPath]: partiesApi.reducer,
   [notificationsApi.reducerPath]: notificationsApi.reducer,
+  [distributorOrdersApi.reducerPath]: distributorOrdersApi.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -32,7 +34,7 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false, // needed for redux-persist
-    }).concat(loginApi.middleware, inventoryApi.middleware, distributorConnectionsApi.middleware, partiesApi.middleware, notificationsApi.middleware), // Added missing middleware
+    }).concat(loginApi.middleware, inventoryApi.middleware, distributorConnectionsApi.middleware, partiesApi.middleware, notificationsApi.middleware, distributorOrdersApi.middleware), 
 });
 
 setupListeners(store.dispatch);

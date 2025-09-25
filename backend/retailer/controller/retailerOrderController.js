@@ -425,34 +425,12 @@ export const createOrder = async (req, res) => {
       message: `New order #${order.order_number} from ${retailerName}`,
       type: 'new order',
       related_id: order.order_id,
-      metadata: JSON.stringify({
-        order_id: order.order_id,
-        order_number: order.order_number,
-        retailer_id: retailerId,
-        retailer_name: retailerName,
-        total_amount: totalAmount,
-        total_items: totalItems,
-        order_date: new Date().toISOString(),
-        items: orderItems.map(item => ({
-          product_code: item.product_code,
-          product_name: item.product_name, // Note: item.product_name might be undefined; consider using generic_name from Product if needed
-          batch_number: item.batch_number,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price
-        }))
-      })
     });
 
     // Emit real-time notification
-    if (req.io) {
-      req.io.to(`distributor_${distributorId}`).emit('newOrder', {
-        order: {
-          ...order.toJSON(),
-          Retailer: { name: retailerName }
-        },
-        notification: notification.toJSON()
-      });
+  if (req.io) {
+      req.io.to(`distributor_${distributorId}`).emit('newNotification', notification.toJSON()
+);
     }
 
     res.status(201).json({
@@ -619,11 +597,9 @@ export const cancelOrder = async (req, res) => {
     });
 
     // Emit real-time notification
-    if (req.io) {
-      req.io.to(`distributor_${order.distributor_id}`).emit('orderCancelled', {
-        order: order.toJSON(),
-        notification: notification.toJSON()
-      });
+  if (req.io) {
+      req.io.to(`distributor_${order.distributor_id}`).emit('newNotification', notification.toJSON()
+);
     }
 
     res.json({

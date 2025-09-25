@@ -113,7 +113,6 @@ const PurchaseOrders = () => {
   // Fetch retailer's past orders
   const { data: ordersData, error: ordersError, isLoading: isOrdersLoading, refetch: refetchOrders } = useGetRetailerOrdersQuery({ status: 'all', page: 1, limit: 100 });
   const allOrders = ordersData?.data?.orders || [];
-
   // Mutation for creating an order
   const [createOrder, { isLoading: isCreatingOrder }] = useCreateOrderMutation();
 
@@ -213,7 +212,7 @@ const PurchaseOrders = () => {
         stock_id: item.stock_id,
         quantity: item.qty,
       })),
-      notes: "Order created from Purchase Orders page",
+      notes: "Order sent",
     };
     setIsSubmitting(true);
     try {
@@ -784,6 +783,7 @@ ${orderItems.map((item, index) =>
                     <TableHead>Items Count</TableHead>
                     <TableHead>Total Amount</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Notes</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -800,6 +800,7 @@ ${orderItems.map((item, index) =>
                           {order.status}
                         </Badge>
                       </TableCell>
+                      <TableCell>{order.notes || '-'}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           <Button size="sm" variant="outline" onClick={() => alert(`Details for ${order.order_number}`)}>
