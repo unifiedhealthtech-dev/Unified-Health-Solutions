@@ -132,3 +132,99 @@ res.json({
   }
 };
 
+// In distributorOrderController.js
+export const createInvoiceFromOrder = async (req, res) => {
+  try {
+    const distributorId = req.user.distributor_id;
+    const { orderId } = req.params;
+    const { items } = req.body; // { item_id, batch_number, quantity }
+
+    const order = await RetailerOrder.findOne({
+      where: { order_id: orderId, distributor_id: distributorId, status: 'confirmed' }
+    });
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found or not confirmed' });
+
+    // Validate each item's batch and quantity
+    for (const item of items) {
+      const stock = await DistributorStockItem.findOne({
+        where: { 
+          batch_number: item.batch_number,
+          product_code: item.product_code,
+          distributor_id: distributorId,
+          current_stock: { [Op.gte]: item.quantity }
+        }
+      });
+      if (!stock) {
+        return res.status(400).json({ success: false, message: `Insufficient stock for batch ${item.batch_number}` });
+      }
+    }
+
+    // Update order to "processing" and invoice_status = "sent"
+    await order.update({ 
+      status: 'processing', 
+      invoice_status: 'sent',
+      notes: 'Invoice generated and sent to retailer'
+    });
+
+    // Create notification for retailer
+    const notification = await Notification.create({
+      user_id: order.retailer_id,
+      role: 'retailer',
+      title: 'Invoice Received',
+      message: `Invoice for order #${order.order_number} is ready.`,
+      type: 'invoice',
+      related_id: order.order_id
+    });
+
+    if (req.io) {
+      req.io.to(`retailer_${order.retailer_id}`).emit('newNotification', notification.toJSON());
+    }
+
+    res.json({ success: true, data: order, message: 'Invoice created and sent successfully' });
+  } catch (error) {
+    console.error('createInvoiceFromOrder error:', error);
+    res.status(500).json({ success: false, message: 'Failed to create invoice' });
+  }
+};
+
+// In distributorOrderController.js
+export const createManualOrder = async (req, res) => {
+  try {
+    const distributorId = req.user.distributor_id;
+    const { retailerId, items, notes } = req.body;
+
+    // Validate retailer exists and is connected
+    const retailer = await Retailer.findByPk(retailerId);
+    if (!retailer) return res.status(404).json({ success: false, message: 'Retailer not found' });
+
+    // Create order
+    const order = await RetailerOrder.create({
+      retailer_id: retailerId,
+      distributor_id: distributorId,
+      order_number: `MAN-${Date.now()}`,
+      total_amount: items.reduce((sum, i) => sum + (i.unit_price * i.quantity), 0),
+      total_items: items.reduce((sum, i) => sum + i.quantity, 0),
+      status: 'confirmed', // Skip pending since manual
+      invoice_status: 'not_sent',
+      notes: notes || 'Manual order created by distributor'
+    });
+
+    // Create items
+    await RetailerOrderItem.bulkCreate(
+      items.map(i => ({
+        order_id: order.order_id,
+        product_code: i.product_code,
+        batch_number: i.batch_number || 'MANUAL',
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        total_price: i.unit_price * i.quantity,
+        tax_rate: i.tax_rate || 12
+      }))
+    );
+
+    res.status(201).json({ success: true, data: order, message: 'Manual order created' });
+  } catch (error) {
+    console.error('createManualOrder error:', error);
+    res.status(500).json({ success: false, message: 'Failed to create manual order' });
+  }
+};

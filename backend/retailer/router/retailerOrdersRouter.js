@@ -10,8 +10,11 @@ import {
   cancelOrder,
   getOrderStatistics,
   getDCItems,
-  createDCItem,
-  deleteDCItem
+  createDCItemsBulk,
+  updateDCItem,
+  deleteDCItem,
+  verifyOrder,
+  createDispute
 } from '../controller/retailerOrderController.js';
 import retailerAuth from '../middleware/authMiddleware.js';
 
@@ -28,7 +31,10 @@ retailerOrdersRouter.get('/dc-items', retailerAuth, getDCItems);
 
 // POST APIs
 retailerOrdersRouter.post('/create', retailerAuth, createOrder);
-retailerOrdersRouter.post('/dc-items', retailerAuth, createDCItem);
+retailerOrdersRouter.post('/dc-items/bulk', retailerAuth, createDCItemsBulk);
+retailerOrdersRouter.put('/dc-items/:id', retailerAuth, updateDCItem);
+retailerOrdersRouter.post('/orders/:orderId/verify', retailerAuth, verifyOrder);
+retailerOrdersRouter.post('/disputes', retailerAuth, createDispute);
 
 // PUT APIs
 retailerOrdersRouter.put('/cancel/:orderId', retailerAuth, cancelOrder);

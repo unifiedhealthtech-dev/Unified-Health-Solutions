@@ -31,8 +31,8 @@ import {
 
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Orders", url: "/orders", icon: ShoppingCart },
   { title: "Inventory", url: "/inventory", icon: Package },
+  { title: "Orders", url: "/orders", icon: ShoppingCart },
   { title: "Billing", url: "/billing", icon: Receipt },
   { title: "Payments", url: "/payments", icon: CreditCard },
   { title: "Parties", url: "/parties", icon: Users },

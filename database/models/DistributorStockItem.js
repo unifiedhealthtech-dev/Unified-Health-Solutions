@@ -75,7 +75,7 @@ const DistributorStockItem = sequelize.define('DistributorStockItem', {
     defaultValue: false
   },
   status: {
-    type: DataTypes.ENUM('In Stock', 'Low Stock', 'Critical', 'Expired'),
+    type: DataTypes.ENUM('In Stock', 'Low Stock', 'Critical', 'Expired', 'Out of Stock'),
     defaultValue: 'In Stock'
   },
   // New fields

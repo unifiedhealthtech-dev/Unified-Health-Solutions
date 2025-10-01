@@ -71,22 +71,48 @@ export const retailerOrdersApi = createApi({
       query: () => '/dc-items',
       providesTags: ['DCItem'],
     }),
-    createDCItem: builder.mutation({
-      query: (itemData) => ({
-        url: '/dc-items',
-        method: 'POST',
-        body: itemData,
-      }),
-      invalidatesTags: ['DCItem'],
-    }),
-    deleteDCItem: builder.mutation({
-      query: (id) => ({
-        url: `/dc-items/${id}`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: ['DCItem'],
-    }),
+    createDCItemsBulk: builder.mutation({
+  query: (payload) => ({
+    url: '/dc-items/bulk',
+    method: 'POST',
+    body: payload
   }),
+  invalidatesTags: ['DCItems']
+}),
+updateDCItem: builder.mutation({
+  query: ({ id, data }) => ({
+    url: `/dc-items/${id}`,
+    method: 'PUT',
+    body: data
+  }),
+  invalidatesTags: ['DCItems']
+}),
+getDCItems: builder.query({
+  query: () => '/dc-items',
+  providesTags: ['DCItems'] // for auto-refetch
+}),
+deleteDCItem: builder.mutation({
+  query: (id) => ({
+    url: `/dc-items/${id}`,
+    method: 'DELETE'
+  }),
+  invalidatesTags: ['DCItems']
+}),
+    verifyOrder: builder.mutation({
+  query: (orderId) => ({
+    url: `/orders/${orderId}/verify`,
+    method: 'POST'
+  }),
+  invalidatesTags: ['Orders']
+}),
+createDispute: builder.mutation({
+  query: (disputeData) => ({
+    url: '/disputes',
+    method: 'POST',
+    body: disputeData
+  })
+}),
+})
 });
 
 export const {
@@ -99,6 +125,9 @@ export const {
   useCancelOrderMutation,
   useGetOrderStatisticsQuery,
   useGetDCItemsQuery,
-  useCreateDCItemMutation,
+  useCreateDCItemsBulkMutation,
+  useUpdateDCItemMutation,
   useDeleteDCItemMutation,
+  useVerifyOrderMutation,
+  useCreateDisputeMutation
 } = retailerOrdersApi;

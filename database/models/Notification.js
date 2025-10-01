@@ -1,8 +1,6 @@
 // database/models/Notification.js
 import { DataTypes } from 'sequelize';
 import sequelize from '../db.js';
-import Retailer from './Retailer.js';
-import Distributor from './Distributor.js';
 
 const Notification = sequelize.define('Notification', {
   notification_id: {
@@ -28,7 +26,7 @@ const Notification = sequelize.define('Notification', {
     allowNull: false,
   },
   type: {
-    type: DataTypes.ENUM('info', 'success', 'warning', 'rejected', "new order", "order cancelled"),
+    type: DataTypes.ENUM('info', 'success', 'warning', 'rejected', "new order", "order cancelled", "dispute"),
     defaultValue: 'info',
   },
   is_read: {
@@ -47,8 +45,5 @@ const Notification = sequelize.define('Notification', {
   tableName: 'notifications',
   timestamps: false,
 });
-
-Notification.belongsTo(Retailer, { foreignKey: 'user_id', constraints: false });
-Notification.belongsTo(Distributor, { foreignKey: 'user_id', constraints: false });
 
 export default Notification;
